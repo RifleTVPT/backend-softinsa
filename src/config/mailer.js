@@ -1,6 +1,13 @@
 const nodemailer = require('nodemailer');
+const dns = require('node:dns');
 require('dotenv').config();
 const ConfiguracoesSistema = require('../models/ConfiguracoesSistema');
+
+// Forçar resolução IPv4 primeiro, para evitar erros ENETUNREACH em ambientes (como Render) sem suporte a IPv6
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
+
 const perfisNormalizados = (perfilStr) => String(perfilStr || '')
     .split(' / ')
     .map(perfil => perfil.trim() === 'Service Line Leader' ? 'SLL' : perfil.trim())
@@ -20,7 +27,7 @@ const createTransporter = async (config) => {
     let port = config?.SMTP_PORT || process.env.SMTP_PORT || 587;
     let secure = config?.SMTP_SECURE ?? (process.env.SMTP_SECURE === 'true');
     let user = config?.SMTP_USER || process.env.SMTP_USER;
-    let pass = config?.SMTP_PASS || process.env.SMTP_PASS;
+    let pass = String(config?.SMTP_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
 
     if (!host || !user) {
         let testAccount = await nodemailer.createTestAccount();
@@ -43,7 +50,7 @@ const testSmtp = async (smtpConfig, destinatario) => {
     const host = String(smtpConfig.SMTP_HOST || '').trim();
     const port = Number(smtpConfig.SMTP_PORT || 587);
     const user = String(smtpConfig.SMTP_USER || '').trim();
-    const pass = String(smtpConfig.SMTP_PASS || '');
+    const pass = String(smtpConfig.SMTP_PASS || '').replace(/\s+/g, '');
     const secure = smtpConfig.SMTP_SECURE === true;
     if (!host || !user || !pass) {
         throw new Error('Preencha o servidor SMTP, o utilizador e a password antes de testar.');
