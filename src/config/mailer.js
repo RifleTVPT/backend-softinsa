@@ -113,7 +113,7 @@ const sendEmail = async (to, subject, html, eventoId = null, perfilStr = null) =
         return info;
     } catch (error) {
         console.error("Erro ao enviar email:", error);
-        throw error;
+        return false;
     }
 };
 

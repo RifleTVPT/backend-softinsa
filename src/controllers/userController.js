@@ -41,7 +41,7 @@ controllers.register = async (req, res) => {
                 }
             });
             for (const admin of admins) {
-                await pushService.sendPush(admin.ID_UTILIZADOR, 'system', 'Novo Registo Pendente', `O utilizador ${nome} registou-se como ${perfil} e aguarda aprovação.`, 'contas', admin.PERFIL_UTILIZADOR);
+                pushService.sendPush(admin.ID_UTILIZADOR, 'system', 'Novo Registo Pendente', `O utilizador ${nome} registou-se como ${perfil} e aguarda aprovação.`, 'contas', admin.PERFIL_UTILIZADOR);
             }
         } catch (notifErr) {
             console.error("Aviso: Falha ao gerar notificações para admins no registo.", notifErr);
@@ -49,7 +49,7 @@ controllers.register = async (req, res) => {
 
         // Tentar enviar e-mail de boas-vindas/confirmação
         try {
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 email,
                 'Bem-vindo à Plataforma de Badges Softinsa',
                 `<h1>Olá, ${nome}</h1><p>O seu registo como <b>${perfil}</b> foi recebido com sucesso.</p><p>A sua conta encontra-se atualmente pendente de aprovação pela equipa administrativa. Receberá um e-mail assim que a sua conta for ativada.</p>`, 'contas', perfil);
@@ -304,7 +304,7 @@ controllers.recuperarPassword = async (req, res) => {
             { where: { EMAIL_UTILIZADOR: email } }
         );
 
-        await pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Password Recuperada', 'A sua password foi alterada através da recuperação de password.', 'contas', 'Consultor');
+        pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Password Recuperada', 'A sua password foi alterada através da recuperação de password.', 'contas', 'Consultor');
 
         res.json({ success: true, message: "Password redefinida com sucesso." });
     } catch (error) {

@@ -131,7 +131,7 @@ controllers.getConquistasConsultor = async (req, res) => {
                     });
                     item.data = new Date().toLocaleDateString('pt-PT');
                     await LogAtividadeSistema.create({ ID_UTILIZADOR: idUtilizador, TIPO_ATIVIDADE: 'Badge Premium Obtido', DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${m.TITULO_MARCO}`, DATA_HORA_ATIVIDADE: new Date() });
-                    await pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${m.TITULO_MARCO}".`, 'badges', 'Consultor');
+                    pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${m.TITULO_MARCO}".`, 'badges', 'Consultor');
                     obtidas.push(item);
                 } else {
                     disponiveis.push(item);

@@ -73,7 +73,7 @@ const sendPush = async (idUtilizador, tipo, titulo, mensagem, eventoId = null, p
         return novaNotif;
     } catch (error) {
         console.error("Erro ao gerar Push Notification:", error);
-        throw error;
+        return false;
     }
 };
 

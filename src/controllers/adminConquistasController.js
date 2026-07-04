@@ -91,7 +91,7 @@ controllers.criarConquista = async (req, res) => {
 
         const utilizadores = await Utilizador.findAll({ where: { ESTADO_CONTA_UTILIZADOR: 'Ativo' } });
         for (const utilizador of utilizadores) {
-            await pushService.sendPush(utilizador.ID_UTILIZADOR, 'info', 'Novo Badge Premium', `O badge premium "${titulo}" foi criado e já está disponível.`, 'badges', utilizador.PERFIL_UTILIZADOR);
+            pushService.sendPush(utilizador.ID_UTILIZADOR, 'info', 'Novo Badge Premium', `O badge premium "${titulo}" foi criado e já está disponível.`, 'badges', utilizador.PERFIL_UTILIZADOR);
         }
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Criação Badge Premium', DETALHES_ATIVIDADE: `Criou o Badge Premium: ${titulo}`, DATA_HORA_ATIVIDADE: new Date() });
 
@@ -117,7 +117,7 @@ controllers.eliminarConquista = async (req, res) => {
 
         const utilizadores = await Utilizador.findAll({ where: { ESTADO_CONTA_UTILIZADOR: 'Ativo' } });
         for (const utilizador of utilizadores) {
-            await pushService.sendPush(utilizador.ID_UTILIZADOR, 'warning', 'Badge Premium Eliminado', `O badge premium "${marco.TITULO_MARCO}" foi eliminado da plataforma.`, 'badges', utilizador.PERFIL_UTILIZADOR);
+            pushService.sendPush(utilizador.ID_UTILIZADOR, 'warning', 'Badge Premium Eliminado', `O badge premium "${marco.TITULO_MARCO}" foi eliminado da plataforma.`, 'badges', utilizador.PERFIL_UTILIZADOR);
         }
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Eliminação Badge Premium', DETALHES_ATIVIDADE: `Eliminou o Badge Premium: ${marco.TITULO_MARCO}`, DATA_HORA_ATIVIDADE: new Date() });
 

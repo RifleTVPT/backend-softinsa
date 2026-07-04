@@ -453,9 +453,9 @@ controllers.tomarDecisaoTM = async (req, res) => {
             const mensagem = novoEstado === 'Recusado'
                 ? `A candidatura ao badge "${nomeBadge}" foi rejeitada por ${nomeValidador} (Talent Manager). Mensagem: ${mensagemAvaliador}`
                 : `A candidatura ao badge "${nomeBadge}" foi aceite por ${nomeValidador} (Talent Manager) e enviada para validação final do Service Line Leader. Mensagem: ${mensagemAvaliador}`;
-            await pushService.sendPush(consultor.ID_UTILIZADOR, novoEstado === 'Recusado' ? 'warning' : 'info', titulo, mensagem, 'validacao', consultor.PERFIL_UTILIZADOR);
+            pushService.sendPush(consultor.ID_UTILIZADOR, novoEstado === 'Recusado' ? 'warning' : 'info', titulo, mensagem, 'validacao', consultor.PERFIL_UTILIZADOR);
             try {
-                await mailer.sendEmail(
+                mailer.sendEmail(
                     consultor.EMAIL_UTILIZADOR,
                     `${titulo} - Plataforma de Badges Softinsa`,
                     `<h2>${titulo}</h2><p>Olá, ${consultor.NOME_COMPLETO_UTILIZADOR}.</p><p>${mensagem}</p>`,
@@ -486,7 +486,7 @@ controllers.tomarDecisaoTM = async (req, res) => {
                     if (serviceLineSLL !== serviceLineBadge) continue;
                     const mensagemSLL = `A candidatura de ${consultor?.NOME_COMPLETO_UTILIZADOR || `utilizador ${pedido.ID_UTILIZADOR}`} ao badge "${nomeBadge}" foi aceite por ${nomeValidador} (Talent Manager) e aguarda a sua decisão final. Mensagem: ${mensagemAvaliador}`;
                     const pushService = require('../services/pushService');
-                    await pushService.sendPush(
+                    pushService.sendPush(
                         sll.ID_UTILIZADOR,
                         'info',
                         'Nova Candidatura para Validação Final',
@@ -495,7 +495,7 @@ controllers.tomarDecisaoTM = async (req, res) => {
                         'Service Line Leader'
                     );
                     try {
-                        await mailer.sendEmail(
+                        mailer.sendEmail(
                             sll.EMAIL_UTILIZADOR,
                             'Nova Candidatura para Validação Final - Plataforma de Badges Softinsa',
                             `<h2>Validação final pendente</h2><p>Olá, ${sll.NOME_COMPLETO_UTILIZADOR}.</p><p>${mensagemSLL}</p><p>Aceda a <strong>Validações → Pedidos Pendentes</strong>.</p>`,
@@ -716,9 +716,9 @@ controllers.tomarDecisaoSLL = async (req, res) => {
             if (novoEstado === 'Rascunho') {
                 mensagem = `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador} Para corrigir o pedido, aceda ao Dashboard → Jornada Técnica → Continuar. Reveja ou substitua as evidências indicadas e submeta novamente a candidatura.`;
             }
-            await pushService.sendPush(utilizador.ID_UTILIZADOR, novoEstado === 'Aceite' ? 'success' : 'warning', titulos[novoEstado], mensagem, 'validacao', utilizador.PERFIL_UTILIZADOR);
+            pushService.sendPush(utilizador.ID_UTILIZADOR, novoEstado === 'Aceite' ? 'success' : 'warning', titulos[novoEstado], mensagem, 'validacao', utilizador.PERFIL_UTILIZADOR);
             try {
-                await mailer.sendEmail(
+                mailer.sendEmail(
                     utilizador.EMAIL_UTILIZADOR,
                     `${titulos[novoEstado]} - Plataforma de Badges Softinsa`,
                     `<h2>${titulos[novoEstado]}</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>${mensagem}</p>`,

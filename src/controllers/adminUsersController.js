@@ -91,7 +91,7 @@ controllers.criarUtilizador = async (req, res) => {
 
         try {
             const mailer = require('../config/mailer');
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 email,
                 'Conta Criada - Plataforma de Badges Softinsa',
                 `<h1>Olá, ${nome}</h1><p>A sua conta foi criada pelo Administrador.</p><p>A sua password temporária é: <b>${passwordInicial}</b></p><p>No seu primeiro acesso, ser-lhe-á pedido para alterar esta password.</p>`, 'contas', perfisString);
@@ -227,7 +227,7 @@ controllers.atualizarUtilizador = async (req, res) => {
 
             try {
                 const mailer = require('../config/mailer');
-                await mailer.sendEmail(
+                mailer.sendEmail(
                     email,
                     'Permissões de Conta Alteradas - Plataforma Softinsa',
                     `<h1>Olá, ${nome}</h1><p>As suas permissões de perfil foram atualizadas pelo Administrador.</p><p>O seu perfil atual é: <b>${perfisString}</b>.</p><p>Se considerar que se trata de um erro, por favor contacte a administração.</p>`, 'contas', perfisString);
@@ -257,7 +257,7 @@ controllers.desativarUtilizador = async (req, res) => {
 
         try {
             const mailer = require('../config/mailer');
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 u.EMAIL_UTILIZADOR,
                 'Conta Desativada - Plataforma Softinsa',
                 `<h1>Olá, ${u.NOME_COMPLETO_UTILIZADOR}</h1><p>A sua conta na plataforma de Badges foi desativada pelo Administrador.</p><p>Já não terá acesso à plataforma. Para mais informações, contacte a equipa de recursos humanos.</p>`, 'contas', u.PERFIL_UTILIZADOR);
@@ -286,7 +286,7 @@ controllers.ativarUtilizador = async (req, res) => {
 
         try {
             const mailer = require('../config/mailer');
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 u.EMAIL_UTILIZADOR,
                 'Conta Reativada - Plataforma Softinsa',
                 `<h1>Olá, ${u.NOME_COMPLETO_UTILIZADOR}</h1><p>Boas notícias! A sua conta na plataforma de Badges foi reativada pelo Administrador.</p><p>Já pode voltar a aceder com as suas credenciais.</p>`, 'contas', u.PERFIL_UTILIZADOR);
@@ -445,7 +445,7 @@ controllers.aceitarRegisto = async (req, res) => {
 
         // Enviar e-mail de aprovação
         try {
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 util.EMAIL_UTILIZADOR,
                 'Conta Aprovada - Plataforma de Badges Softinsa',
                 `<h1>Olá, ${util.NOME_COMPLETO_UTILIZADOR}</h1><p>O seu pedido de registo foi <b>aprovado</b> pelo Administrador.</p><p>Já pode iniciar sessão na plataforma utilizando as suas credenciais.</p>`, 'contas', perfisString);
@@ -467,7 +467,7 @@ controllers.aceitarRegisto = async (req, res) => {
                     }
                 });
                 for (const sll of slls) {
-                    await pushService.sendPush(sll.ID_UTILIZADOR, 'system', 'Novo Consultor Adicionado', `Um novo consultor (${util.NOME_COMPLETO_UTILIZADOR}) da Service Line ${util.SL_REGISTO} foi aprovado na plataforma.`, 'contas', 'SLL');
+                    pushService.sendPush(sll.ID_UTILIZADOR, 'system', 'Novo Consultor Adicionado', `Um novo consultor (${util.NOME_COMPLETO_UTILIZADOR}) da Service Line ${util.SL_REGISTO} foi aprovado na plataforma.`, 'contas', 'SLL');
                 }
             }
 
@@ -479,12 +479,12 @@ controllers.aceitarRegisto = async (req, res) => {
                     }
                 });
                 for (const tm of tms) {
-                    await pushService.sendPush(tm.ID_UTILIZADOR, 'system', 'Novo Consultor na Área', `O consultor ${util.NOME_COMPLETO_UTILIZADOR} ingressou na área ${util.AREA_REGISTO}. Acompanhe o seu progresso.`, 'contas', 'Talent Manager');
+                    pushService.sendPush(tm.ID_UTILIZADOR, 'system', 'Novo Consultor na Área', `O consultor ${util.NOME_COMPLETO_UTILIZADOR} ingressou na área ${util.AREA_REGISTO}. Acompanhe o seu progresso.`, 'contas', 'Talent Manager');
                 }
             }
 
             // Notificar o próprio user na app
-            await pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Bem-vindo à Gamificação Softinsa!', 'A sua conta foi validada com sucesso. Pode começar a candidatar-se a badges.', 'contas', 'Consultor');
+            pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Bem-vindo à Gamificação Softinsa!', 'A sua conta foi validada com sucesso. Pode começar a candidatar-se a badges.', 'contas', 'Consultor');
 
         } catch (notifErr) {
             console.error("Erro ao notificar entrada de utilizador:", notifErr);
@@ -523,7 +523,7 @@ controllers.recusarRegisto = async (req, res) => {
         });
 
         try {
-            await mailer.sendEmail(
+            mailer.sendEmail(
                 util.EMAIL_UTILIZADOR,
                 'Conta Recusada - Plataforma de Badges Softinsa',
                 `<h1>Olá, ${util.NOME_COMPLETO_UTILIZADOR}</h1><p>Lamentamos informar que o seu pedido de registo foi <b>recusado</b> pelo Administrador.</p><p>Se achar que se trata de um erro, por favor contacte a equipa administrativa diretamente.</p>`, 'contas', util.PERFIL_UTILIZADOR);

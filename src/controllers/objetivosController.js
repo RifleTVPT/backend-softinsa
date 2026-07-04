@@ -56,7 +56,7 @@ controllers.criarObjetivo = async (req, res) => {
 
         if (enviarNotificacao) {
             const pushService = require('../services/pushService');
-            await pushService.sendPush(
+            pushService.sendPush(
                 idUtilizador, 
                 'info', 
                 'Novo Objetivo', 

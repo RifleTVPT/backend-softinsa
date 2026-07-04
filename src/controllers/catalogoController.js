@@ -235,7 +235,7 @@ controllers.createBadge = async (req, res) => {
                 perfis.includes('Consultor') ||
                 (perfis.includes('Service Line Leader') && u.SL_REGISTO === serviceLine);
             if (!deveReceber) continue;
-            await pushService.sendPush(
+            pushService.sendPush(
                 u.ID_UTILIZADOR,
                 'info',
                 'Novo Badge Adicionado',
@@ -372,7 +372,7 @@ controllers.candidatar = async (req, res) => {
         if (utilizador) {
             const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
             const mensagemConfirmacao = `A sua candidatura ao badge "${nomeBadge}" foi submetida por ${utilizador.NOME_COMPLETO_UTILIZADOR} e enviada para análise do Talent Manager. Mensagem: Sem mensagem adicional.`;
-            await pushService.sendPush(
+            pushService.sendPush(
                 utilizador.ID_UTILIZADOR,
                 'info',
                 'Candidatura Enviada para o Talent Manager',
@@ -381,7 +381,7 @@ controllers.candidatar = async (req, res) => {
                 'Consultor'
             );
             try {
-                await mailer.sendEmail(
+                mailer.sendEmail(
                     utilizador.EMAIL_UTILIZADOR,
                     'Confirmação de Candidatura - Plataforma de Badges Softinsa',
                     `<h2>Candidatura submetida com sucesso</h2>
@@ -407,7 +407,7 @@ controllers.candidatar = async (req, res) => {
             const nomeConsultor = utilizador?.NOME_COMPLETO_UTILIZADOR || `Utilizador ${idUtilizador}`;
             const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
             const mensagemTalent = `${nomeConsultor} submeteu uma candidatura ao badge "${nomeBadge}". Mensagem: Sem mensagem adicional. Aceda a Validações → Pedidos Pendentes para analisar as evidências.`;
-            await pushService.sendPush(
+            pushService.sendPush(
                 talent.ID_UTILIZADOR,
                 'info',
                 'Nova Candidatura para Validação',
@@ -416,7 +416,7 @@ controllers.candidatar = async (req, res) => {
                 'Talent Manager'
             );
             try {
-                await mailer.sendEmail(
+                mailer.sendEmail(
                     talent.EMAIL_UTILIZADOR,
                     'Nova Candidatura para Validação - Plataforma de Badges Softinsa',
                     `<h2>Nova candidatura recebida</h2>
@@ -591,7 +591,7 @@ controllers.deleteBadge = async (req, res) => {
         for (const idUtilizador of idsAfetados) {
             const destinatario = validadores.find(u => u.ID_UTILIZADOR === idUtilizador) || await Utilizador.findByPk(idUtilizador);
             if (destinatario) {
-                await pushService.sendPush(idUtilizador, 'warning', 'Badge Eliminado', `O badge "${badge.NOME_BADGE}" foi eliminado da plataforma.`, 'badges', destinatario.PERFIL_UTILIZADOR);
+                pushService.sendPush(idUtilizador, 'warning', 'Badge Eliminado', `O badge "${badge.NOME_BADGE}" foi eliminado da plataforma.`, 'badges', destinatario.PERFIL_UTILIZADOR);
             }
         }
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Eliminação Badge', DETALHES_ATIVIDADE: `Eliminou o Badge: ${badge.NOME_BADGE}`, DATA_HORA_ATIVIDADE: new Date() });

@@ -93,7 +93,7 @@ controllers.notificarConsultor = async (req, res) => {
         const { idUtilizador, badgeNome, diasRestantes } = req.body;
 
         const pushService = require('../services/pushService');
-        await pushService.sendPush(
+        pushService.sendPush(
             idUtilizador,
             'warning',
             'Aviso Crítico de Expiração',

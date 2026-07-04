@@ -79,7 +79,7 @@ controllers.createAviso = async (req, res) => {
                 
                 for (const u of users) {
                     try {
-                        await mailer.sendEmail(
+                        mailer.sendEmail(
                             u.EMAIL_UTILIZADOR,
                             `Aviso Importante: ${titulo}`,
                             `<h1>${titulo}</h1><p>${mensagem}</p><hr><p><small>Este é um aviso enviado automaticamente pela Plataforma de Badges Softinsa.</small></p>`,
@@ -89,7 +89,7 @@ controllers.createAviso = async (req, res) => {
                     } catch (e) { console.error("Falha email aviso", e); }
 
                     try {
-                        await pushService.sendPush(
+                        pushService.sendPush(
                             u.ID_UTILIZADOR,
                             novo.TIPO_NOTIFICACAO === 'Sistema' ? 'system' : (novo.TIPO_NOTIFICACAO === 'Crítico' ? 'warning' : 'info'),
                             titulo,
