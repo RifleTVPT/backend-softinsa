@@ -7,7 +7,7 @@ const sequelize = new Sequelize(
   'softinsa_db_80qb_user',
   '8TEBjF90KAOZIcwpjDyZb1kADKmCw5lA',
   {
-    host: 'dpg-d947aoq8qa3s73c1a5n0-a',
+    host: 'dpg-d947aoq8qa3s73c1a5n0-a.oregon-postgres.render.com',
     dialect: 'postgres',
     port: 5432,
     logging: false,
