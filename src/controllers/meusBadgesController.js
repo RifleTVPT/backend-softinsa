@@ -368,7 +368,7 @@ controllers.getPartilhaLinkedInBadge = async (req, res) => {
                 ]
             },
             include: [
-                { model: Badge },
+                { model: Badge, include: [{ model: Nivel }] },
                 { model: Consultor, include: [{ model: Utilizador }] }
             ]
         });
@@ -379,9 +379,51 @@ controllers.getPartilhaLinkedInBadge = async (req, res) => {
         const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
         const badge = cb.Badge;
         const consultor = cb.Consultor.Utilizador;
+
+        let slParsed = 'Global';
+        let areaParsed = 'Global';
+        try {
+            const catObj = JSON.parse(badge.CATEGORIA_BADGE);
+            if (catObj.serviceLine) slParsed = catObj.serviceLine;
+            if (catObj.area) areaParsed = catObj.area;
+        } catch(e) {}
+
+        const levelLetter = badge.Nivel?.ORDEM_HIERARQUICA
+            ? String.fromCharCode(64 + badge.Nivel.ORDEM_HIERARQUICA)
+            : 'N/A';
+        const levelName = badge.Nivel?.NOME_NIVEL || 'N/A';
+        const nivelStr = `${levelName} (Nível ${levelLetter})`;
+
+        const formatarValidade = (totalMeses) => {
+            if (!totalMeses) return 'Sem validade (Vitalício)';
+            const anos = Math.floor(totalMeses / 12);
+            const meses = totalMeses % 12;
+            const partes = [];
+            if (anos > 0) partes.push(`${anos} ano${anos > 1 ? 's' : ''}`);
+            if (meses > 0) partes.push(`${meses} ${meses === 1 ? 'mês' : 'meses'}`);
+            return partes.join(' e ');
+        };
+
+        const dataAtribuicao = new Date(cb.DATA_ATRIBUICAO_BADGE).toLocaleDateString('pt-PT');
+        const validadeStr = badge.VALIDADE_EXPIRACAO
+            ? `Até ${new Date(badge.VALIDADE_EXPIRACAO).toLocaleDateString('pt-PT')}`
+            : formatarValidade(badge.VALIDADE_MESES);
+
+        const pontos = badge.PONTOS_BADGE;
+
+        const descricaoCompleta = `${consultor.NOME_COMPLETO_UTILIZADOR} obteve o badge "${badge.NOME_BADGE}" na Plataforma de Badges Softinsa.
+• Service Line: ${slParsed}
+• Área: ${areaParsed}
+• Nível: ${nivelStr}
+• Pontos: +${pontos}
+• Atribuído a: ${dataAtribuicao}
+• Validade: ${validadeStr}
+
+Valide oficialmente esta conquista clicando no link!`;
+
         return enviarPaginaPartilha(req, res, {
             titulo: `${badge.NOME_BADGE} — Badge Softinsa`,
-            descricao: `${consultor.NOME_COMPLETO_UTILIZADOR} obteve o badge "${badge.NOME_BADGE}" na Plataforma de Badges Softinsa.`,
+            descricao: descricaoCompleta,
             imagem: obterImagemPublica(req, badge.URL_IMAGEM),
             destino: `${frontendUrl}/verificacao/${encodeURIComponent(linkUnico)}`
         });
@@ -669,9 +711,19 @@ controllers.getPartilhaLinkedInEspecial = async (req, res) => {
         }
 
         const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+        
+        const dataAtribuicao = new Date(relacao.DATA_CONQUISTA).toLocaleDateString('pt-PT');
+        
+        const descricaoCompleta = `${consultor.Utilizador.NOME_COMPLETO_UTILIZADOR} alcançou a conquista especial "${marco.TITULO_MARCO}" na Plataforma de Badges Softinsa.
+• Categoria: ${marco.TIPO_MARCO || 'Conquista Especial'}
+• Pontos Bónus: +${marco.PONTOS_EXTRA}
+• Conquistado a: ${dataAtribuicao}
+
+Valide oficialmente esta conquista especial clicando no link!`;
+
         return enviarPaginaPartilha(req, res, {
             titulo: `${marco.TITULO_MARCO} — Badge Premium Softinsa`,
-            descricao: `${consultor.Utilizador.NOME_COMPLETO_UTILIZADOR} alcançou a conquista especial "${marco.TITULO_MARCO}" na Plataforma de Badges Softinsa.`,
+            descricao: descricaoCompleta,
             imagem: obterImagemPublica(req, marco.URL_IMAGEM_MARCO),
             destino: `${frontendUrl}/verificacao-especial/${idUtilizador}/${idMarco}`
         });
