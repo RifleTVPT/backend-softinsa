@@ -253,8 +253,14 @@ controllers.uploadAvatar = async (req, res) => {
             return res.status(400).json({ success: false, message: "Nenhum ficheiro enviado." });
         }
 
+        const origemApi = (
+            process.env.PUBLIC_API_URL || 
+            process.env.BACKEND_URL || 
+            `${req.protocol}://${req.get('host')}`
+        ).replace(/\/$/, '');
+
         // URL para aceder à imagem guardada na pasta uploads
-        const fileUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+        const fileUrl = `${origemApi}/uploads/${req.file.filename}`;
 
         await Utilizador.update(
             { URL_FOTO: fileUrl },
