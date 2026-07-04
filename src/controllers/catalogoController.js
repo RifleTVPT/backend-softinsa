@@ -171,7 +171,7 @@ controllers.createBadge = async (req, res) => {
     try {
         const { 
             nome, descricao, serviceLine, area, nivelId, 
-            pontos, hasValidade, validadeExpiracao, validadePersonalizada, adminId, requisitos 
+            pontos, hasValidade, tipoValidade, valorValidade, adminId, requisitos 
         } = req.body;
 
         // 1. Obter configurações do sistema
@@ -210,9 +210,18 @@ controllers.createBadge = async (req, res) => {
             urlImagemFinal = `http://localhost:3000/uploads/${filename}`;
         }
 
-        const dataExpiracaoPersonalizada = hasValidade && validadePersonalizada && validadeExpiracao
-            ? new Date(validadeExpiracao)
-            : null;
+        let valMeses = null;
+        let valDias = null;
+
+        if (hasValidade) {
+            const v = parseInt(valorValidade) || validadeMeses;
+            if (tipoValidade === 'dias') {
+                valDias = v;
+            } else {
+                valMeses = v;
+            }
+        }
+
         const novoBadge = await Badge.create({
             ID_CATEGORIA: 1, // hardcoded legacy
             ID_NIVEL: nivelId,
@@ -222,10 +231,10 @@ controllers.createBadge = async (req, res) => {
             CATEGORIA_BADGE: JSON.stringify({ serviceLine: serviceLine || 'Global', area: area || 'Global' }),
             PONTOS_BADGE: pontosFinal,
             URL_IMAGEM: urlImagemFinal,
-            TEMPO_EXPIRACAO_BADGE: hasValidade && !dataExpiracaoPersonalizada ? validadeMeses : null,
+            TEMPO_EXPIRACAO_BADGE: valDias,
             IS_PREMIUM: false,
-            VALIDADE_MESES: (hasValidade && !dataExpiracaoPersonalizada) ? validadeMeses : null,
-            VALIDADE_EXPIRACAO: dataExpiracaoPersonalizada
+            VALIDADE_MESES: valMeses,
+            VALIDADE_EXPIRACAO: null
         });
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Criação Badge', DETALHES_ATIVIDADE: `Criou novo Badge: ${nome}`, DATA_HORA_ATIVIDADE: new Date() });
         const todosUtils = await Utilizador.findAll({ where: { ESTADO_CONTA_UTILIZADOR: 'Ativo' } });
@@ -606,7 +615,7 @@ controllers.deleteBadge = async (req, res) => {
 controllers.updateBadge = async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, descricao, serviceLine, area, nivelId, pontos, hasValidade, validadeExpiracao, validadePersonalizada, requisitos, adminId } = req.body;
+        const { nome, descricao, serviceLine, area, nivelId, pontos, hasValidade, tipoValidade, valorValidade, requisitos, adminId } = req.body;
 
         const Badge = require('../models/Badge');
         const Requisito = require('../models/Requisito');
@@ -641,12 +650,22 @@ controllers.updateBadge = async (req, res) => {
         badge.URL_IMAGEM = urlImagemFinal;
         const config = await ConfiguracoesSistema.findByPk(1);
         const validadePadrao = config?.VALIDADE_MESES_PADRAO || 12;
-        const dataExpiracaoPersonalizada = hasValidade && validadePersonalizada && validadeExpiracao
-            ? new Date(validadeExpiracao)
-            : null;
-        badge.VALIDADE_MESES = hasValidade && !dataExpiracaoPersonalizada ? validadePadrao : null;
-        badge.VALIDADE_EXPIRACAO = dataExpiracaoPersonalizada;
-        badge.TEMPO_EXPIRACAO_BADGE = badge.VALIDADE_MESES;
+
+        let valMeses = null;
+        let valDias = null;
+
+        if (hasValidade) {
+            const v = parseInt(valorValidade) || validadePadrao;
+            if (tipoValidade === 'dias') {
+                valDias = v;
+            } else {
+                valMeses = v;
+            }
+        }
+
+        badge.VALIDADE_MESES = valMeses;
+        badge.TEMPO_EXPIRACAO_BADGE = valDias;
+        badge.VALIDADE_EXPIRACAO = null;
         await badge.save();
 
         // Update pontos dos consultores se mudou

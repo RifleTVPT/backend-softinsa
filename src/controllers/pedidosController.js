@@ -25,6 +25,23 @@ const normalizarStatusAdmin = (estado) => {
     if (['Pendente de Correção', 'Rascunho'].includes(estado)) return 'Rascunho';
     return estado;
 };
+
+const calcularNovaDataExpiracao = (badge, dataAtualBase = null) => {
+    if (!badge.VALIDADE_MESES && !badge.TEMPO_EXPIRACAO_BADGE) return null;
+    
+    const hoje = new Date();
+    let base = dataAtualBase ? new Date(dataAtualBase) : new Date();
+    if (base < hoje) base = new Date();
+
+    if (badge.TEMPO_EXPIRACAO_BADGE) {
+        base.setDate(base.getDate() + badge.TEMPO_EXPIRACAO_BADGE);
+        return base;
+    } else if (badge.VALIDADE_MESES) {
+        base.setMonth(base.getMonth() + badge.VALIDADE_MESES);
+        return base;
+    }
+    return null;
+};
 const obterHistoricoDoPedido = async (idPedido) => {
     const relacoes = await RegistoHistoricoPedido.findAll({ where: { ID_PEDIDO: idPedido } });
     const ids = relacoes.map(relacao => relacao.ID_HISTORICO);
@@ -684,11 +701,7 @@ controllers.tomarDecisaoSLL = async (req, res) => {
             if (!consultor) return res.status(400).json({ success: false, message: 'Perfil de consultor não encontrado' });
             const existente = await ConsultorBadge.findOne({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: pedido.ID_BADGE } });
             if (!existente) {
-                const dataExpiracao = pedido.Badge.VALIDADE_EXPIRACAO
-                    ? new Date(pedido.Badge.VALIDADE_EXPIRACAO)
-                    : (pedido.Badge.VALIDADE_MESES
-                        ? new Date(new Date().setMonth(new Date().getMonth() + pedido.Badge.VALIDADE_MESES))
-                        : null);
+                const dataExpiracao = calcularNovaDataExpiracao(pedido.Badge, null);
                 await ConsultorBadge.create({ ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: pedido.ID_BADGE, DATA_ATRIBUICAO_BADGE: new Date(), MOTIVO_ATRIBUICAO: 'Aprovação final do SLL', DATA_EXPIRACAO: dataExpiracao, LINK_UNICO_BADGE: `badge-${pedido.ID_BADGE}-${consultor.ID_CONSULTOR}-${Date.now()}`, STATUS_GALERIA_PUBLICA: true });
                 const pontosBadge = pedido.Badge.PONTOS_BADGE || 0;
                 await consultor.update({ PONTUACAO_TOTAL: (consultor.PONTUACAO_TOTAL || 0) + pontosBadge });
@@ -700,6 +713,19 @@ controllers.tomarDecisaoSLL = async (req, res) => {
                 });
                 await LogAtividadeSistema.create({ ID_UTILIZADOR: pedido.ID_UTILIZADOR, TIPO_ATIVIDADE: 'Badge Obtido', DETALHES_ATIVIDADE: `Ganhou o badge ${pedido.Badge.NOME_BADGE}`, DATA_HORA_ATIVIDADE: new Date() });
                 await avaliarConquistasConsultor(consultor);
+            } else {
+                // É uma renovação. Atualizamos a data de expiração e os pontos.
+                const novaExpiracao = calcularNovaDataExpiracao(pedido.Badge, existente.DATA_EXPIRACAO);
+                await existente.update({ DATA_EXPIRACAO: novaExpiracao });
+                const pontosBadge = pedido.Badge.PONTOS_BADGE || 0;
+                await consultor.update({ PONTUACAO_TOTAL: (consultor.PONTUACAO_TOTAL || 0) + pontosBadge });
+                await HistoricoPontuacao.create({
+                    ID_UTILIZADOR: pedido.ID_UTILIZADOR,
+                    DATA_ATRIBUICAO: new Date(),
+                    PONTOS_OBTIDOS: pontosBadge,
+                    ORIGEM_PONTOS: `Renovação de Badge: ${pedido.Badge.NOME_BADGE}`
+                });
+                await LogAtividadeSistema.create({ ID_UTILIZADOR: pedido.ID_UTILIZADOR, TIPO_ATIVIDADE: 'Badge Renovado', DETALHES_ATIVIDADE: `Renovou o badge ${pedido.Badge.NOME_BADGE}`, DATA_HORA_ATIVIDADE: new Date() });
             }
         }
 
