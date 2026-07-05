@@ -36,7 +36,7 @@ controllers.sincronizarConsultor = async (req, res) => {
         const idsPedidos = pedidos.map(p => p.ID_PEDIDO);
         const [
             serviceLines, areas, niveis, badges, requisitos, consultorBadges,
-            evidencias, marcos, marcosConsultor, objetivos, notificacoes, historicoPontos
+            evidencias, marcos, marcosConsultor, objetivos, notificacoes, historicoPontos, todosConsultores
         ] = await Promise.all([
             ServiceLine.findAll(),
             Area.findAll(),
@@ -52,7 +52,8 @@ controllers.sincronizarConsultor = async (req, res) => {
                 where: { ID_UTILIZADOR: idUtilizador },
                 order: [['DATA_ENVIO_NOTIFICACAO', 'DESC']]
             }),
-            HistoricoPontuacao.findAll({ where: { ID_UTILIZADOR: idUtilizador } })
+            HistoricoPontuacao.findAll({ where: { ID_UTILIZADOR: idUtilizador } }),
+            Consultor.findAll()
         ]);
 
         const json = items => items.map(item => item.toJSON());
@@ -62,6 +63,7 @@ controllers.sincronizarConsultor = async (req, res) => {
                 server_time: new Date().toISOString(),
                 utilizador: utilizador.toJSON(),
                 consultor: consultor.toJSON(),
+                consultores: json(todosConsultores),
                 service_lines: json(serviceLines),
                 areas: json(areas),
                 niveis: json(niveis),
