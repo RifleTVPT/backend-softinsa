@@ -1,18 +1,19 @@
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 require('dotenv').config();
 
 let isInitialized = false;
 
 try {
     // Para produção, normalmente usa-se as variáveis de ambiente com o JSON do Service Account
-    // process.env.FIREBASE_SERVICE_ACCOUNT
+    // process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
     
     // Como fallback de desenvolvimento, inicializamos com valores vazios para não rebentar a app, 
     // mas bloqueamos os envios se não estiver configurado corretamente.
     if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
         const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('ascii'));
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+        initializeApp({
+            credential: cert(serviceAccount)
         });
         isInitialized = true;
         console.log("Firebase Admin inicializado com sucesso.");
@@ -49,7 +50,7 @@ const sendPushNotification = async (token, title, body, data = {}) => {
     };
 
     try {
-        const response = await admin.messaging().send(message);
+        const response = await getMessaging().send(message);
         console.log('Successfully sent push message:', response);
         return response;
     } catch (error) {
@@ -59,6 +60,5 @@ const sendPushNotification = async (token, title, body, data = {}) => {
 };
 
 module.exports = {
-    admin,
     sendPushNotification
 };

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const sequelize = require('./config/database'); 
 const userRoutes = require('./routes/userRoutes');
@@ -110,12 +111,17 @@ app.get('*', (req, res, next) => {
         '/admin-conquistas', '/pedidos', '/estatisticas', '/objetivos',
         '/relatorios', '/notificacoes', '/expiracao', '/talent',
         '/sll-badges', '/sll-consultores', '/admin-users', '/estrutura',
-        '/configuracoes', '/avisos', '/mobile', '/uploads'
     ];
     if (apiPrefixes.some(prefix => req.path.startsWith(prefix))) {
         return next();
     }
-    res.sendFile(path.join(__dirname, '../../frontend-web/dist/index.html'));
+    
+    const indexPath = path.join(__dirname, '../../frontend-web/dist/index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(200).send("Bem-vindo à API Softinsa. O Frontend ainda não foi buildado neste ambiente.");
+    }
 });
 
 // Sincronização e arranque do servidor
