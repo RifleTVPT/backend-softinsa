@@ -334,12 +334,19 @@ controllers.renovarPedido = async (req, res) => {
             }
         }
 
-        await badgeObtido.destroy();
-
-        res.json({
-            success: true,
-            message: 'Renovação disponibilizada. O rascunho será criado quando anexar evidências.'
-        });
+        if (diasRestantes <= 0) {
+            await badgeObtido.destroy();
+            res.json({
+                success: true,
+                message: 'Renovação disponibilizada. O badge expirou e foi removido. O rascunho será criado quando anexar evidências.'
+            });
+        } else {
+            // Se tem mais de 0 dias (ex: 15 dias), mantém o badge obtido para que some o tempo quando for aprovado
+            res.json({
+                success: true,
+                message: 'Renovação iniciada. O badge mantém-se ativo até à aprovação, que somará os dias restantes.'
+            });
+        }
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

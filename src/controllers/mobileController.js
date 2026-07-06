@@ -1,4 +1,6 @@
 const { Op } = require('sequelize');
+const fs = require('fs');
+const path = require('path');
 const Utilizador = require('../models/Utilizador');
 const Consultor = require('../models/Consultor');
 const ServiceLine = require('../models/ServiceLine');
@@ -81,6 +83,92 @@ controllers.sincronizarConsultor = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+controllers.receberPedidoMobile = async (req, res) => {
+    try {
+        const idUtilizadorLogado = req.userId;
+        const payload = req.body;
+        
+        if (idUtilizadorLogado !== payload.ID_UTILIZADOR) {
+             return res.status(403).json({ success: false, message: 'ID de utilizador inválido.' });
+        }
+
+        const idBadge = payload.ID_BADGE;
+        const dataSubmissaoMobile = new Date(payload.DATA_SUBMISSAO_PEDIDO);
+
+        // 1. Procurar pedido existente não rascunho/recusado
+        let pedidoExistente = await Pedido.findOne({
+            where: {
+                ID_UTILIZADOR: idUtilizadorLogado,
+                ID_BADGE: idBadge,
+                ESTADO_PEDIDO: { [Op.notIn]: ['Rascunho', 'Recusado'] }
+            }
+        });
+
+        if (pedidoExistente) {
+            const dataSubmissaoExistente = new Date(pedidoExistente.DATA_SUBMISSAO_PEDIDO);
+            
+            if (dataSubmissaoMobile <= dataSubmissaoExistente) {
+                // Pedido da Web é mais recente (ou igual). Ignoramos o do mobile silenciosamente para ele dar sucesso
+                return res.status(201).json({ success: true, message: 'Pedido da Web é mais recente, sincronização ignorada.' });
+            } else {
+                // Pedido mobile é mais recente. Remover o antigo.
+                await Evidencia.destroy({ where: { ID_PEDIDO: pedidoExistente.ID_PEDIDO } });
+                await pedidoExistente.destroy();
+            }
+        }
+
+        // 2. Apagar Rascunhos se existirem na web
+        await Pedido.destroy({
+            where: {
+                ID_UTILIZADOR: idUtilizadorLogado,
+                ID_BADGE: idBadge,
+                ESTADO_PEDIDO: 'Rascunho'
+            }
+        });
+
+        // 3. Criar o novo Pedido
+        const novoPedido = await Pedido.create({
+            ID_UTILIZADOR: idUtilizadorLogado,
+            ID_BADGE: idBadge,
+            DATA_SUBMISSAO_PEDIDO: dataSubmissaoMobile,
+            DATA_ULTIMA_ATUALIZACAO: new Date(),
+            ESTADO_PEDIDO: 'Pendente'
+        });
+
+        // 4. Processar Evidências (Base64)
+        const evidencias = payload.evidencias || [];
+        const pastaUploads = path.join(__dirname, '../../uploads');
+        if (!fs.existsSync(pastaUploads)) {
+            fs.mkdirSync(pastaUploads, { recursive: true });
+        }
+
+        for (const ev of evidencias) {
+            if (!ev.base64) continue;
+
+            const nomeSeguro = ev.NOME_FICHEIRO.replace(/[^a-zA-Z0-9.\-_]/g, '');
+            const nomeFinal = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${nomeSeguro}`;
+            const caminhoFicheiro = path.join(pastaUploads, nomeFinal);
+
+            const buffer = Buffer.from(ev.base64, 'base64');
+            fs.writeFileSync(caminhoFicheiro, buffer);
+
+            await Evidencia.create({
+                ID_PEDIDO: novoPedido.ID_PEDIDO,
+                NOME_FICHEIRO: nomeFinal,
+                URL_FICHEIRO: `/uploads/${nomeFinal}`,
+                ID_REQUISITO: ev.REQUISITO_MAPEADO || null,
+                REQUISITO_MAPEADO: null 
+            });
+        }
+
+        return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.' });
+
+    } catch (error) {
+        console.error("Erro na sincronização:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
