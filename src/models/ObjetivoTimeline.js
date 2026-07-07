@@ -10,7 +10,8 @@ const ObjetivoTimeline = sequelize.define('ObjetivoTimeline', {
     DATA_OBJETIVO: { type: DataTypes.DATE, allowNull: false },
     STATUS: { type: DataTypes.STRING(50), allowNull: false }, // 'Em Progresso', 'Concluído'
     DATA_CONCLUSAO: { type: DataTypes.DATE, allowNull: true },
-    ORIGEM: { type: DataTypes.STRING(100), allowNull: false } // Ex: 'Criado por mim' ou 'Service Line Leader'
+    ORIGEM: { type: DataTypes.STRING(100), allowNull: false }, // Ex: 'Criado por mim' ou 'Service Line Leader'
+    TIPO_OBJETIVO: { type: DataTypes.STRING(100), allowNull: true, defaultValue: 'Outro' }
 }, { tableName: 'OBJETIVO_TIMELINE', timestamps: false });
 
 ObjetivoTimeline.belongsTo(Utilizador, { foreignKey: 'ID_UTILIZADOR' });

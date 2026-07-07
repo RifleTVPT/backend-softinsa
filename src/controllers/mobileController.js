@@ -172,4 +172,50 @@ controllers.receberPedidoMobile = async (req, res) => {
     }
 };
 
+controllers.sincronizarObjetivosOffline = async (req, res) => {
+    const { acoes } = req.body;
+    if (!acoes || !Array.isArray(acoes)) {
+        return res.status(400).json({ success: false, message: 'Dados inválidos' });
+    }
+
+    const t = await sequelize.transaction();
+    try {
+        const mapIds = {};
+        for (const acao of acoes) {
+            const dados = acao.DADOS;
+            if (acao.TIPO_ACAO === 'CRIAR') {
+                const obj = await ObjetivoTimeline.create({
+                    ID_UTILIZADOR: dados.ID_UTILIZADOR,
+                    TITULO: dados.TITULO,
+                    DESCRICAO: dados.DESCRICAO || null,
+                    DATA_OBJETIVO: dados.DATA_OBJETIVO,
+                    STATUS: dados.STATUS || 'Em Progresso',
+                    ORIGEM: dados.ORIGEM || 'Criado por mim',
+                    TIPO_OBJETIVO: dados.TIPO_OBJETIVO || 'Outro'
+                }, { transaction: t });
+                
+                if (dados.ID_OBJETIVO_LOCAL) {
+                    mapIds[dados.ID_OBJETIVO_LOCAL] = obj.ID_OBJETIVO;
+                }
+            } else if (acao.TIPO_ACAO === 'CONCLUIR') {
+                let targetId = dados.ID_OBJETIVO;
+                if (mapIds[targetId]) {
+                    targetId = mapIds[targetId];
+                }
+                
+                await ObjetivoTimeline.update(
+                    { STATUS: 'Concluído', DATA_CONCLUSAO: new Date() },
+                    { where: { ID_OBJETIVO: targetId }, transaction: t }
+                );
+            }
+        }
+        await t.commit();
+        res.json({ success: true, message: 'Objetivos sincronizados com sucesso!' });
+    } catch (error) {
+        await t.rollback();
+        console.error('Erro na sincronização de objetivos:', error);
+        res.status(500).json({ success: false, message: 'Erro interno na sincronização', error: error.message });
+    }
+};
+
 module.exports = controllers;
