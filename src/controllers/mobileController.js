@@ -185,11 +185,25 @@ controllers.sincronizarObjetivosOffline = async (req, res) => {
         for (const acao of acoes) {
             const dados = acao.DADOS;
             if (acao.TIPO_ACAO === 'CRIAR') {
+                let dataObj = new Date(dados.DATA_OBJETIVO);
+                if (isNaN(dataObj.getTime())) {
+                    // Se o mobile enviou DD/MM/YYYY ou outro formato inválido, converter
+                    if (typeof dados.DATA_OBJETIVO === 'string' && dados.DATA_OBJETIVO.includes('/')) {
+                        const parts = dados.DATA_OBJETIVO.split('/');
+                        if (parts.length === 3) {
+                            dataObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                        }
+                    }
+                    if (isNaN(dataObj.getTime())) {
+                        dataObj = new Date(); // Fallback absoluto
+                    }
+                }
+
                 const obj = await ObjetivoTimeline.create({
                     ID_UTILIZADOR: dados.ID_UTILIZADOR,
                     TITULO: dados.TITULO,
                     DESCRICAO: dados.DESCRICAO || null,
-                    DATA_OBJETIVO: dados.DATA_OBJETIVO,
+                    DATA_OBJETIVO: dataObj,
                     STATUS: dados.STATUS || 'Em Progresso',
                     ORIGEM: dados.ORIGEM || 'Criado por mim',
                     TIPO_OBJETIVO: dados.TIPO_OBJETIVO || 'Outro'
