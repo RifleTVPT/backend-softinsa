@@ -162,6 +162,7 @@ controllers.getPerfilConsultorSL = async (req, res) => {
                  sub: `${cb.Badge?.NOME_BADGE || 'Badge'} - Nível ${nivelStr}`,
                  data: cb.DATA_ATRIBUICAO_BADGE ? new Date(cb.DATA_ATRIBUICAO_BADGE).toLocaleDateString('pt-PT') : 'N/A',
                  bonus: cb.Badge?.PONTOS_BADGE || 0,
+                 urlImagem: cb.Badge?.URL_IMAGEM || '',
                  especial: false,
                  isOutraSL: false // Pode manter visual igual mas não distinguir aqui
              }
@@ -176,6 +177,7 @@ controllers.getPerfilConsultorSL = async (req, res) => {
                     sub: detalhe.DESCRICAO_MARCO || 'Reconhecimento',
                     bonus: detalhe.PONTOS_EXTRA || 0,
                     data: mc.DATA_CONQUISTA ? new Date(mc.DATA_CONQUISTA).toLocaleDateString('pt-PT') : 'N/A',
+                    urlImagem: detalhe.URL_IMAGEM_MARCO || '',
                     especial: true,
                     isOutraSL: false
                 });

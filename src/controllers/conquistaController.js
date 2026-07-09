@@ -242,6 +242,8 @@ controllers.getDetalhesConquista = async (req, res) => {
                 bonus: marco.PONTOS_EXTRA,
                 raridade: marco.TIPO_MARCO ? marco.TIPO_MARCO.replace('_', ' ') : 'ESPECIAL',
                 imagem: marco.URL_IMAGEM_MARCO,
+                urlImagem: marco.URL_IMAGEM_MARCO,
+                img: marco.URL_IMAGEM_MARCO,
                 obtida: !!conquistaGanha,
                 data: conquistaGanha ? new Date(conquistaGanha.DATA_CONQUISTA).toLocaleDateString('pt-PT') : null,
                 progressoValor: Math.round(progValor),

@@ -157,7 +157,8 @@ controllers.getPerfilConsultor = async (req, res) => {
                  sub: `${cb.Badge?.NOME_BADGE || 'Badge'} - Nível ${nivelStr}`,
                  data: cb.DATA_ATRIBUICAO_BADGE ? new Date(cb.DATA_ATRIBUICAO_BADGE).toLocaleDateString('pt-PT') : 'N/A',
                  bonus: cb.Badge?.PONTOS_BADGE || 0,
-                 especial: false
+                 urlImagem: cb.Badge?.URL_IMAGEM || '',
+                  especial: false
              }
         });
 
@@ -170,6 +171,7 @@ controllers.getPerfilConsultor = async (req, res) => {
                     descricao: detalhe.DESCRICAO_MARCO || 'Reconhecimento',
                     bonus: detalhe.PONTOS_EXTRA || 0,
                     data: new Date(mc.DATA_CONQUISTA).toLocaleDateString('pt-PT'),
+                    urlImagem: detalhe.URL_IMAGEM_MARCO || '',
                     especial: true
                 });
             }
