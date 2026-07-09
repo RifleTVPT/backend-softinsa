@@ -707,7 +707,7 @@ controllers.updateBadge = async (req, res) => {
             });
         }
 
-        res.json({ success: true, message: 'Badge atualizado com sucesso!' });
+        res.json({ success: true, message: 'Badge atualizado com sucesso!', data: badge });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
