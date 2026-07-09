@@ -1,0 +1,130 @@
+const crypto = require('crypto');
+const fs = require('fs');
+const https = require('https');
+const path = require('path');
+
+const uploadDir = path.join(__dirname, '../../uploads');
+
+const isCloudinaryConfigured = () => Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+);
+
+const getApiOrigin = (req) => (
+    process.env.PUBLIC_API_URL ||
+    process.env.BACKEND_URL ||
+    `${req.protocol}://${req.get('host')}`
+).replace(/\/$/, '');
+
+const sanitizeFilename = (name = 'ficheiro') => {
+    const parsed = path.parse(String(name).replace(/\\/g, '/').split('/').pop() || 'ficheiro');
+    const base = parsed.name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 80) || 'ficheiro';
+    const ext = parsed.ext.replace(/[^a-zA-Z0-9.]/g, '').slice(0, 12);
+    return `${base}${ext}`;
+};
+
+const extensionFromMime = (mime = '') => {
+    if (mime.includes('svg')) return '.svg';
+    if (mime.includes('png')) return '.png';
+    if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg';
+    if (mime.includes('webp')) return '.webp';
+    if (mime.includes('pdf')) return '.pdf';
+    return '';
+};
+
+const saveLocalBuffer = async (req, buffer, originalname, { absolute = false } = {}) => {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${sanitizeFilename(originalname)}`;
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+    const relative = `/uploads/${filename}`;
+    return { url: absolute ? `${getApiOrigin(req)}${relative}` : relative, filename, provider: 'local' };
+};
+
+const cloudinarySignature = (params) => {
+    const payload = Object.keys(params).sort().map(key => `${key}=${params[key]}`).join('&');
+    return crypto.createHash('sha1').update(`${payload}${process.env.CLOUDINARY_API_SECRET}`).digest('hex');
+};
+
+const appendField = (chunks, boundary, name, value) => {
+    chunks.push(Buffer.from(`--${boundary}\r\n`));
+    chunks.push(Buffer.from(`Content-Disposition: form-data; name="${name}"\r\n\r\n`));
+    chunks.push(Buffer.from(`${value}\r\n`));
+};
+
+const appendFile = (chunks, boundary, buffer, filename, contentType) => {
+    chunks.push(Buffer.from(`--${boundary}\r\n`));
+    chunks.push(Buffer.from(`Content-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType || 'application/octet-stream'}\r\n\r\n`));
+    chunks.push(buffer);
+    chunks.push(Buffer.from('\r\n'));
+};
+
+const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceType = 'auto' }) => {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const params = { folder, timestamp };
+    const signature = cloudinarySignature(params);
+    const boundary = `----softinsa-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const filename = sanitizeFilename(originalname);
+    const chunks = [];
+
+    appendFile(chunks, boundary, buffer, filename, mimetype);
+    appendField(chunks, boundary, 'api_key', process.env.CLOUDINARY_API_KEY);
+    appendField(chunks, boundary, 'timestamp', timestamp);
+    appendField(chunks, boundary, 'folder', folder);
+    appendField(chunks, boundary, 'signature', signature);
+    chunks.push(Buffer.from(`--${boundary}--\r\n`));
+
+    const body = Buffer.concat(chunks);
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            method: 'POST',
+            hostname: 'api.cloudinary.com',
+            path: `/v1_1/${encodeURIComponent(cloudName)}/${resourceType}/upload`,
+            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }
+        }, (res) => {
+            const parts = [];
+            res.on('data', chunk => parts.push(chunk));
+            res.on('end', () => {
+                const text = Buffer.concat(parts).toString('utf8');
+                let data;
+                try { data = JSON.parse(text); } catch (_) { return reject(new Error(`Resposta invalida da Cloudinary: ${text}`)); }
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    return resolve({ url: data.secure_url || data.url, filename, publicId: data.public_id, provider: 'cloudinary', resourceType: data.resource_type });
+                }
+                reject(new Error(data.error?.message || `Erro Cloudinary ${res.statusCode}`));
+            });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+};
+
+const uploadBuffer = async (req, buffer, options = {}) => {
+    const { originalname = 'ficheiro', mimetype = 'application/octet-stream', folder = 'softinsa/ficheiros', absoluteLocalUrl = false, resourceType = 'auto' } = options;
+    if (!buffer) throw new Error('Ficheiro vazio.');
+    if (!isCloudinaryConfigured()) return saveLocalBuffer(req, buffer, originalname, { absolute: absoluteLocalUrl });
+    return uploadToCloudinary({ buffer, originalname, mimetype, folder, resourceType });
+};
+
+const uploadMulterFile = (req, file, options = {}) => {
+    if (!file?.buffer) throw new Error('Ficheiro enviado sem conteudo em memoria.');
+    return uploadBuffer(req, file.buffer, { originalname: file.originalname, mimetype: file.mimetype, ...options });
+};
+
+const uploadDataUri = async (req, dataUri, options = {}) => {
+    const match = String(dataUri || '').match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) throw new Error('Imagem base64 invalida.');
+    const mimetype = match[1];
+    const ext = extensionFromMime(mimetype) || '.bin';
+    return uploadBuffer(req, Buffer.from(match[2], 'base64'), { originalname: options.originalname || `imagem_${Date.now()}${ext}`, mimetype, ...options });
+};
+
+module.exports = { getApiOrigin, isCloudinaryConfigured, sanitizeFilename, uploadBuffer, uploadDataUri, uploadMulterFile };

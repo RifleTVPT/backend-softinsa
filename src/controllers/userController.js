@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const mailer = require('../config/mailer');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
+const { uploadMulterFile } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -252,15 +253,12 @@ controllers.uploadAvatar = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ success: false, message: "Nenhum ficheiro enviado." });
         }
-
-        const origemApi = (
-            process.env.PUBLIC_API_URL || 
-            process.env.BACKEND_URL || 
-            `${req.protocol}://${req.get('host')}`
-        ).replace(/\/$/, '');
-
-        // URL para aceder à imagem guardada na pasta uploads
-        const fileUrl = `${origemApi}/uploads/${req.file.filename}`;
+        const uploadedAvatar = await uploadMulterFile(req, req.file, {
+            folder: 'softinsa/avatars',
+            resourceType: 'auto',
+            absoluteLocalUrl: true
+        });
+        const fileUrl = uploadedAvatar.url;
 
         await Utilizador.update(
             { URL_FOTO: fileUrl },

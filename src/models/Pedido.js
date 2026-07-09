@@ -1,7 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-// 1. Importar os modelos que vão servir de Chave Estrangeira
 const Utilizador = require('./Utilizador');
 const Badge = require('./Badge');
 
@@ -57,7 +56,6 @@ const Pedido = sequelize.define('Pedido', {
     timestamps: false
 });
 
-// 3. Declarar a associação no fim
 Pedido.belongsTo(Utilizador, { foreignKey: 'ID_UTILIZADOR' });
 Pedido.belongsTo(Badge, { foreignKey: 'ID_BADGE' });
 

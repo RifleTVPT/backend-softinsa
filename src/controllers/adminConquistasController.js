@@ -5,6 +5,7 @@ const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
 const pushService = require('../services/pushService');
 const { Op } = require('sequelize');
+const { uploadMulterFile } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -73,7 +74,11 @@ controllers.criarConquista = async (req, res) => {
         
         let imagemUrl = null;
         if (req.file) {
-            imagemUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+            const uploadedImage = await uploadMulterFile(req, req.file, {
+                folder: 'softinsa/premium',
+                resourceType: 'auto'
+            });
+            imagemUrl = uploadedImage.url;
         }
 
         const comoObterText = gerarTextoComoObter(tipo, param1, param2);
@@ -83,7 +88,7 @@ controllers.criarConquista = async (req, res) => {
             DESCRICAO_MARCO: desc || comoObterText,
             PONTOS_EXTRA: parseInt(bonus),
             REGRA_ATRIBUICAO: comoObterText,
-            URL_IMAGEM_MARCO: imagemUrl || 'trofeu-padrao.png',
+            URL_IMAGEM_MARCO: imagemUrl || '/uploads/default-trophy.png',
             TIPO_MARCO: tipo,
             PARAMETRO_1: param1 ? parseInt(param1) : null,
             PARAMETRO_2: param2 ? parseInt(param2) : null

@@ -54,7 +54,7 @@ const obterOrigemApi = (req) => (
 const obterImagemPublica = (req, imagem) => {
     const origemApi = obterOrigemApi(req);
     const valor = String(imagem || '').trim();
-    if (!valor || valor.startsWith('data:') || valor.includes('placeholder') || valor.toLowerCase().endsWith('.svg')) {
+    if (!valor || valor.startsWith('data:') || valor.includes('placeholder') || valor.includes('trofeu-padrao')) {
         return `${origemApi}/uploads/default-trophy.png`;
     }
     if (/^https?:\/\/localhost:3000/i.test(valor)) {

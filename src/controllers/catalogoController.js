@@ -12,6 +12,7 @@ const HistoricoPedido = require('../models/HistoricoPedido');
 const RegistoHistoricoPedido = require('../models/RegistoHistoricoPedido');
 const PreferenciasUtilizador = require('../models/PreferenciasUtilizador');
 const { Op } = require('sequelize');
+const { uploadDataUri, uploadMulterFile } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -44,7 +45,7 @@ controllers.getAllBadges = async (req, res) => {
             ] 
         });
 
-        // Mapear para o formato exato que o teu React pede
+        // Mapear para o formato exato que o React pede
         const badgesFormatados = badgesBD.map(b => {
             let catObj = { serviceLine: b.CATEGORIA_BADGE, area: b.CATEGORIA_BADGE };
             try {
@@ -195,22 +196,18 @@ controllers.createBadge = async (req, res) => {
 
         if (!pontosFinal) pontosFinal = 150; // Fallback
         if (pontosFinal > 500) pontosFinal = 500; // Máximo 500
-
         // 2. Criar o Badge
-        let urlImagemFinal = 'http://localhost:3000/uploads/default-trophy.png';
+        let urlImagemFinal = '/uploads/default-trophy.png';
         if (req.body.imagemBase64 && req.body.imagemBase64.startsWith('data:image')) {
-            const fs = require('fs');
-            const path = require('path');
-            const matches = req.body.imagemBase64.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
-            const ext = (matches && matches[1] && matches[1].includes('svg')) ? 'svg' : 'png';
-            const base64Data = req.body.imagemBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/i, "");
-            const filename = `badge_${Date.now()}.${ext}`;
-            const filepath = path.join(__dirname, '../../uploads', filename);
-            fs.writeFileSync(filepath, base64Data, 'base64');
-            urlImagemFinal = `http://localhost:3000/uploads/${filename}`;
+            const uploadedImage = await uploadDataUri(req, req.body.imagemBase64, {
+                folder: 'softinsa/badges',
+                resourceType: 'auto',
+                originalname: `badge_${Date.now()}`
+            });
+            urlImagemFinal = uploadedImage.url;
         }
 
-        let valMeses = null;
+let valMeses = null;
         let valDias = null;
 
         if (hasValidade) {
@@ -223,7 +220,7 @@ controllers.createBadge = async (req, res) => {
         }
 
         const novoBadge = await Badge.create({
-            ID_CATEGORIA: 1, // hardcoded legacy
+            ID_CATEGORIA: 1,
             ID_NIVEL: nivelId,
             ID_ADMIN: adminId,
             NOME_BADGE: nome,
@@ -347,7 +344,11 @@ controllers.candidatar = async (req, res) => {
                 if (req.files && req.files.length > 0) {
                     const uploadedFile = req.files.find(f => ficheiroCorresponde(f, ev.nome));
                     if (uploadedFile) {
-                        savedUrl = `/uploads/${uploadedFile.filename}`;
+                        const uploaded = await uploadMulterFile(req, uploadedFile, {
+                            folder: 'softinsa/evidencias',
+                            resourceType: 'auto'
+                        });
+                        savedUrl = uploaded.url;
                     }
                 }
 
@@ -504,7 +505,11 @@ controllers.saveRascunho = async (req, res) => {
                 if (req.files && req.files.length > 0) {
                     const uploadedFile = req.files.find(f => ficheiroCorresponde(f, ev.nome));
                     if (uploadedFile) {
-                        savedUrl = `/uploads/${uploadedFile.filename}`;
+                        const uploaded = await uploadMulterFile(req, uploadedFile, {
+                            folder: 'softinsa/evidencias',
+                            resourceType: 'auto'
+                        });
+                        savedUrl = uploaded.url;
                     }
                 }
 
@@ -626,22 +631,18 @@ controllers.updateBadge = async (req, res) => {
         if (!badge) return res.status(404).json({ success: false, message: 'Badge não encontrado' });
 
         const diffPontos = pontos - badge.PONTOS_BADGE;
-        
         // Update badge image if provided
         let urlImagemFinal = badge.URL_IMAGEM;
         if (req.body.imagemBase64 && req.body.imagemBase64.startsWith('data:image')) {
-            const fs = require('fs');
-            const path = require('path');
-            const matches = req.body.imagemBase64.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
-            const ext = (matches && matches[1] && matches[1].includes('svg')) ? 'svg' : 'png';
-            const base64Data = req.body.imagemBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/i, "");
-            const filename = `badge_${Date.now()}.${ext}`;
-            const filepath = path.join(__dirname, '../../uploads', filename);
-            fs.writeFileSync(filepath, base64Data, 'base64');
-            urlImagemFinal = `http://localhost:3000/uploads/${filename}`;
+            const uploadedImage = await uploadDataUri(req, req.body.imagemBase64, {
+                folder: 'softinsa/badges',
+                resourceType: 'auto',
+                originalname: `badge_${Date.now()}`
+            });
+            urlImagemFinal = uploadedImage.url;
         }
 
-        // Update badge
+// Update badge
         badge.NOME_BADGE = nome;
         badge.DESCRICAO_BADGE = descricao;
         badge.CATEGORIA_BADGE = JSON.stringify({ serviceLine: serviceLine || 'Global', area: area || 'Global' });

@@ -2,29 +2,11 @@ const express = require('express');
 const router = express.Router();
 const catalogoController = require('../controllers/catalogoController');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const middleware = require('../middlewares/middleware');
 
-// Configuração do multer para guardar os uploads na pasta backend-softinsa/uploads
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
+const upload = multer({ storage: multer.memoryStorage() });
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        // Gerar nome único para evitar conflitos
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
-
-// Rotas do Catálogo Global
+// Rotas do Catalogo Global
 router.get('/badges', catalogoController.getAllBadges);
 router.get('/badges/:id', catalogoController.getBadgeDetails);
 router.post('/candidatar', upload.array('ficheiros', 20), catalogoController.candidatar);

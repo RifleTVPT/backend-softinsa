@@ -1,7 +1,7 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Ligao direta  Base de Dados do Render (usando o Internal Host)
+// Ligao direta  Base de Dados do Render
 const sequelize = new Sequelize(
   'softinsa_db_80qb', 
   'softinsa_db_80qb_user',

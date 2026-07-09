@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const Nivel = require('./Nivel');
 
 const Badge = sequelize.define('Badge', {
     ID_BADGE: {
@@ -60,4 +61,7 @@ const Badge = sequelize.define('Badge', {
     timestamps: false
 });
 
-module.exports = Badge;const Nivel = require('./Nivel'); Badge.belongsTo(Nivel, { foreignKey: 'ID_NIVEL' }); Nivel.hasMany(Badge, { foreignKey: 'ID_NIVEL' });
+Badge.belongsTo(Nivel, { foreignKey: 'ID_NIVEL' }); 
+Nivel.hasMany(Badge, { foreignKey: 'ID_NIVEL' });
+
+module.exports = Badge; Badge.belongsTo(Nivel, { foreignKey: 'ID_NIVEL' }); Nivel.hasMany(Badge, { foreignKey: 'ID_NIVEL' });
