@@ -35,8 +35,22 @@ const extensionFromMime = (mime = '') => {
     if (mime.includes('png')) return '.png';
     if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg';
     if (mime.includes('webp')) return '.webp';
+    if (mime.includes('gif')) return '.gif';
     if (mime.includes('pdf')) return '.pdf';
     return '';
+};
+
+const chooseResourceType = (mimetype = '', requested = 'auto') => {
+    if (requested && requested !== 'auto') return requested;
+    if (String(mimetype).startsWith('image/')) return 'image';
+    return 'auto';
+};
+
+const withMimeExtension = (name, mimetype) => {
+    const ext = extensionFromMime(mimetype);
+    if (!ext) return name;
+    const currentExt = path.extname(String(name || ''));
+    return currentExt ? name : `${name}${ext}`;
 };
 
 const saveLocalBuffer = async (req, buffer, originalname, { absolute = false } = {}) => {
@@ -66,6 +80,8 @@ const appendFile = (chunks, boundary, buffer, filename, contentType) => {
 };
 
 const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceType = 'auto' }) => {
+    resourceType = chooseResourceType(mimetype, resourceType);
+    originalname = withMimeExtension(originalname, mimetype);
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const timestamp = Math.floor(Date.now() / 1000);
     const params = { folder, timestamp };
@@ -110,7 +126,9 @@ const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceTy
 };
 
 const uploadBuffer = async (req, buffer, options = {}) => {
-    const { originalname = 'ficheiro', mimetype = 'application/octet-stream', folder = 'softinsa/ficheiros', absoluteLocalUrl = false, resourceType = 'auto' } = options;
+    let { originalname = 'ficheiro', mimetype = 'application/octet-stream', folder = 'softinsa/ficheiros', absoluteLocalUrl = false, resourceType = 'auto' } = options;
+    resourceType = chooseResourceType(mimetype, resourceType);
+    originalname = withMimeExtension(originalname, mimetype);
     if (!buffer) throw new Error('Ficheiro vazio.');
     if (!isCloudinaryConfigured()) {
         console.warn('[Uploads] Cloudinary nao configurado. A usar fallback local para', originalname);
@@ -130,7 +148,7 @@ const uploadDataUri = async (req, dataUri, options = {}) => {
     if (!match) throw new Error('Imagem base64 invalida.');
     const mimetype = match[1];
     const ext = extensionFromMime(mimetype) || '.bin';
-    return uploadBuffer(req, Buffer.from(match[2], 'base64'), { originalname: options.originalname || `imagem_${Date.now()}${ext}`, mimetype, ...options });
+    return uploadBuffer(req, Buffer.from(match[2], 'base64'), { ...options, originalname: withMimeExtension(options.originalname || `imagem_${Date.now()}${ext}`, mimetype), mimetype, resourceType: chooseResourceType(mimetype, options.resourceType || 'auto') });
 };
 
 module.exports = { getApiOrigin, isCloudinaryConfigured, sanitizeFilename, uploadBuffer, uploadDataUri, uploadMulterFile };

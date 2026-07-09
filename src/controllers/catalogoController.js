@@ -16,6 +16,13 @@ const { uploadDataUri, uploadMulterFile } = require('../services/cloudFileServic
 
 const controllers = {};
 
+const nomeImagemBadge = (dataUri) => {
+    const match = String(dataUri || '').match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
+    const tipo = match?.[1] || 'png';
+    const ext = tipo.includes('svg') ? 'svg' : (tipo.includes('jpeg') ? 'jpg' : tipo.replace(/[^a-zA-Z0-9]/g, '') || 'png');
+    return `badge_${Date.now()}.${ext}`;
+};
+
 // Helper: mapeia ID de nível para letra
 const mapNivel = (id) => String.fromCharCode(64 + (id || 1));
 const normalizarNomeFicheiro = nome => String(nome || '')
@@ -63,6 +70,7 @@ controllers.getAllBadges = async (req, res) => {
                 pontos: b.PONTOS_BADGE,
                 requisitosCount: b.requisitos.length,
                 URL_IMAGEM: b.URL_IMAGEM,
+                urlImagem: b.URL_IMAGEM,
                 isPremium: b.IS_PREMIUM
             };
         });
@@ -202,7 +210,7 @@ controllers.createBadge = async (req, res) => {
             const uploadedImage = await uploadDataUri(req, req.body.imagemBase64, {
                 folder: 'softinsa/badges',
                 resourceType: 'auto',
-                originalname: `badge_${Date.now()}`
+                originalname: nomeImagemBadge(req.body.imagemBase64)
             });
             urlImagemFinal = uploadedImage.url;
             console.log('[Badges] Imagem criada/atualizada no Cloudinary/local:', urlImagemFinal);
@@ -638,7 +646,7 @@ controllers.updateBadge = async (req, res) => {
             const uploadedImage = await uploadDataUri(req, req.body.imagemBase64, {
                 folder: 'softinsa/badges',
                 resourceType: 'auto',
-                originalname: `badge_${Date.now()}`
+                originalname: nomeImagemBadge(req.body.imagemBase64)
             });
             urlImagemFinal = uploadedImage.url;
             console.log('[Badges] Imagem atualizada no Cloudinary/local:', urlImagemFinal);
