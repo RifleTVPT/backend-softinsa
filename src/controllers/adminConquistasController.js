@@ -79,6 +79,7 @@ controllers.criarConquista = async (req, res) => {
                 resourceType: 'auto'
             });
             imagemUrl = uploadedImage.url;
+            console.log('[Premium] Imagem guardada no Cloudinary/local:', imagemUrl);
         }
 
         const comoObterText = gerarTextoComoObter(tipo, param1, param2);

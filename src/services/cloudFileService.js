@@ -96,8 +96,10 @@ const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceTy
                 let data;
                 try { data = JSON.parse(text); } catch (_) { return reject(new Error(`Resposta invalida da Cloudinary: ${text}`)); }
                 if (res.statusCode >= 200 && res.statusCode < 300) {
+                    console.log('[Uploads] Cloudinary OK:', { publicId: data.public_id, resourceType: data.resource_type, url: data.secure_url || data.url });
                     return resolve({ url: data.secure_url || data.url, filename, publicId: data.public_id, provider: 'cloudinary', resourceType: data.resource_type });
                 }
+                console.error('[Uploads] Cloudinary erro:', { statusCode: res.statusCode, body: data });
                 reject(new Error(data.error?.message || `Erro Cloudinary ${res.statusCode}`));
             });
         });
@@ -110,7 +112,11 @@ const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceTy
 const uploadBuffer = async (req, buffer, options = {}) => {
     const { originalname = 'ficheiro', mimetype = 'application/octet-stream', folder = 'softinsa/ficheiros', absoluteLocalUrl = false, resourceType = 'auto' } = options;
     if (!buffer) throw new Error('Ficheiro vazio.');
-    if (!isCloudinaryConfigured()) return saveLocalBuffer(req, buffer, originalname, { absolute: absoluteLocalUrl });
+    if (!isCloudinaryConfigured()) {
+        console.warn('[Uploads] Cloudinary nao configurado. A usar fallback local para', originalname);
+        return saveLocalBuffer(req, buffer, originalname, { absolute: absoluteLocalUrl });
+    }
+    console.log('[Uploads] A enviar para Cloudinary:', { folder, originalname, mimetype, bytes: buffer.length });
     return uploadToCloudinary({ buffer, originalname, mimetype, folder, resourceType });
 };
 

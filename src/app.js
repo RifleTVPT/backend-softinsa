@@ -53,7 +53,8 @@ const ConfiguracoesSistema = require('./models/ConfiguracoesSistema');
 app.set('port', process.env.PORT || 3000);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Logger simples para ver as chamadas no terminal
 app.use((req, res, next) => {

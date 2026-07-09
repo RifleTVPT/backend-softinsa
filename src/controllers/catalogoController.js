@@ -205,9 +205,10 @@ controllers.createBadge = async (req, res) => {
                 originalname: `badge_${Date.now()}`
             });
             urlImagemFinal = uploadedImage.url;
+            console.log('[Badges] Imagem criada/atualizada no Cloudinary/local:', urlImagemFinal);
         }
 
-let valMeses = null;
+        let valMeses = null;
         let valDias = null;
 
         if (hasValidade) {
@@ -640,9 +641,12 @@ controllers.updateBadge = async (req, res) => {
                 originalname: `badge_${Date.now()}`
             });
             urlImagemFinal = uploadedImage.url;
+            console.log('[Badges] Imagem atualizada no Cloudinary/local:', urlImagemFinal);
+        } else {
+            console.log('[Badges] PUT sem imagemBase64 nova. Mantem imagem atual:', urlImagemFinal);
         }
 
-// Update badge
+        // Update badge
         badge.NOME_BADGE = nome;
         badge.DESCRICAO_BADGE = descricao;
         badge.CATEGORIA_BADGE = JSON.stringify({ serviceLine: serviceLine || 'Global', area: area || 'Global' });
@@ -668,6 +672,7 @@ controllers.updateBadge = async (req, res) => {
         badge.TEMPO_EXPIRACAO_BADGE = valDias;
         badge.VALIDADE_EXPIRACAO = null;
         await badge.save();
+        console.log('[Badges] URL_IMAGEM final guardado:', badge.URL_IMAGEM);
 
         // Update pontos dos consultores se mudou
         if (diffPontos !== 0) {

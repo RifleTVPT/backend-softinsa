@@ -259,6 +259,7 @@ controllers.uploadAvatar = async (req, res) => {
             absoluteLocalUrl: true
         });
         const fileUrl = uploadedAvatar.url;
+        console.log('[Avatar] Foto guardada no Cloudinary/local:', fileUrl);
 
         await Utilizador.update(
             { URL_FOTO: fileUrl },
