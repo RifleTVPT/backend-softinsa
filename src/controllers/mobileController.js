@@ -17,6 +17,7 @@ const MarcoConsultor = require('../models/MarcoConsultor');
 const ObjetivoTimeline = require('../models/ObjetivoTimeline');
 const Notificacao = require('../models/Notificacao');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
+const { uploadBuffer } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -141,30 +142,27 @@ controllers.receberPedidoMobile = async (req, res) => {
 
         // 4. Processar Evidências (Base64)
         const evidencias = payload.evidencias || [];
-        const pastaUploads = path.join(__dirname, '../../uploads');
-        if (!fs.existsSync(pastaUploads)) {
-            fs.mkdirSync(pastaUploads, { recursive: true });
-        }
 
         for (const ev of evidencias) {
             if (!ev.base64) continue;
 
-            const nomeSeguro = ev.NOME_FICHEIRO.replace(/[^a-zA-Z0-9.\-_]/g, '');
-            const nomeFinal = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${nomeSeguro}`;
-            const caminhoFicheiro = path.join(pastaUploads, nomeFinal);
-
+            const nomeSeguro = (ev.NOME_FICHEIRO || 'evidencia').replace(/[^a-zA-Z0-9.\-_]/g, '');
             const buffer = Buffer.from(ev.base64, 'base64');
-            fs.writeFileSync(caminhoFicheiro, buffer);
+            const uploaded = await uploadBuffer(buffer, {
+                folder: 'softinsa/evidencias',
+                originalname: nomeSeguro,
+                mimetype: ev.MIME_TYPE || ev.mimeType || 'application/octet-stream',
+                resourceType: 'auto'
+            });
 
             await Evidencia.create({
                 ID_PEDIDO: novoPedido.ID_PEDIDO,
-                NOME_FICHEIRO: nomeFinal,
-                URL_FICHEIRO: `/uploads/${nomeFinal}`,
+                NOME_FICHEIRO: nomeSeguro,
+                URL_FICHEIRO: uploaded.url,
                 ID_REQUISITO: ev.REQUISITO_MAPEADO || null,
-                REQUISITO_MAPEADO: null 
+                REQUISITO_MAPEADO: null
             });
         }
-
         return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.' });
 
     } catch (error) {
