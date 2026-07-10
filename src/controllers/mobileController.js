@@ -21,6 +21,29 @@ const { uploadBuffer } = require('../services/cloudFileService');
 
 const controllers = {};
 
+const inferMimeFromName = (name = '') => {
+    const ext = path.extname(String(name)).toLowerCase();
+    const mimes = {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain; charset=utf-8',
+        '.csv': 'text/csv; charset=utf-8',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    };
+    return mimes[ext] || 'application/octet-stream';
+};
+
 controllers.sincronizarConsultor = async (req, res) => {
     try {
         const idUtilizador = req.userId;
@@ -110,16 +133,11 @@ controllers.receberPedidoMobile = async (req, res) => {
         });
 
         if (pedidoExistente) {
-            const dataSubmissaoExistente = new Date(pedidoExistente.DATA_SUBMISSAO_PEDIDO);
-            
-            if (dataSubmissaoMobile <= dataSubmissaoExistente) {
-                // Pedido da Web é mais recente (ou igual). Ignoramos o do mobile silenciosamente para ele dar sucesso
-                return res.status(201).json({ success: true, message: 'Pedido da Web é mais recente, sincronização ignorada.' });
-            } else {
-                // Pedido mobile é mais recente. Remover o antigo.
-                await Evidencia.destroy({ where: { ID_PEDIDO: pedidoExistente.ID_PEDIDO } });
-                await pedidoExistente.destroy();
-            }
+            return res.status(201).json({
+                success: true,
+                message: 'Já existe um pedido ativo para este badge.',
+                idPedido: pedidoExistente.ID_PEDIDO
+            });
         }
 
         // 2. Apagar Rascunhos se existirem na web
@@ -151,7 +169,7 @@ controllers.receberPedidoMobile = async (req, res) => {
             const uploaded = await uploadBuffer(req, buffer, {
                 folder: 'softinsa/evidencias',
                 originalname: nomeSeguro,
-                mimetype: ev.MIME_TYPE || ev.mimeType || 'application/octet-stream',
+                mimetype: ev.MIME_TYPE || ev.mimeType || inferMimeFromName(nomeSeguro),
                 resourceType: 'auto'
             });
 
@@ -163,7 +181,7 @@ controllers.receberPedidoMobile = async (req, res) => {
                 REQUISITO_MAPEADO: null
             });
         }
-        return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.' });
+        return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.', idPedido: novoPedido.ID_PEDIDO });
 
     } catch (error) {
         console.error("Erro na sincronização:", error);
@@ -228,12 +246,12 @@ controllers.sincronizarObjetivosOffline = async (req, res) => {
             }
         }
         await sequelize.query(`
-            DELETE FROM OBJETIVO_TIMELINE
-            WHERE ID_OBJETIVO NOT IN (
+            DELETE FROM "OBJETIVO_TIMELINE"
+            WHERE "ID_OBJETIVO" NOT IN (
                 SELECT id_keep FROM (
-                    SELECT MIN(ID_OBJETIVO) AS id_keep
-                    FROM OBJETIVO_TIMELINE
-                    GROUP BY ID_UTILIZADOR, TITULO, DATA_OBJETIVO, TIPO_OBJETIVO
+                    SELECT MIN("ID_OBJETIVO") AS id_keep
+                    FROM "OBJETIVO_TIMELINE"
+                    GROUP BY "ID_UTILIZADOR", "TITULO", "DATA_OBJETIVO", "TIPO_OBJETIVO"
                 ) AS objetivos_unicos
             )
         `, { transaction: t });

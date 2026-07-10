@@ -43,7 +43,7 @@ const extensionFromMime = (mime = '') => {
 const chooseResourceType = (mimetype = '', requested = 'auto') => {
     if (requested && requested !== 'auto') return requested;
     if (String(mimetype).startsWith('image/')) return 'image';
-    return 'auto';
+    return 'raw';
 };
 
 const withMimeExtension = (name, mimetype) => {

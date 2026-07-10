@@ -1,5 +1,6 @@
 
 const Pedido = require('../models/Pedido');
+const sequelize = require('../config/database');
 const HistoricoPedido = require('../models/HistoricoPedido');
 const Evidencia = require('../models/Evidencia');
 const Badge = require('../models/Badge');
@@ -19,6 +20,34 @@ const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { avaliarConquistasConsultor } = require('../services/conquistaService');
 
 const controllers = {};
+
+const limparPedidosAtivosDuplicados = async () => {
+    const estados = `'Rascunho', 'Pendente', 'Em Análise TM'`;
+    await sequelize.query(`
+        DELETE FROM "EVIDENCIA"
+        WHERE "ID_PEDIDO" IN (
+            SELECT p."ID_PEDIDO"
+            FROM "PEDIDO" p
+            WHERE p."ESTADO_PEDIDO" IN (${estados})
+              AND p."ID_PEDIDO" NOT IN (
+                  SELECT MAX("ID_PEDIDO")
+                  FROM "PEDIDO"
+                  WHERE "ESTADO_PEDIDO" IN (${estados})
+                  GROUP BY "ID_UTILIZADOR", "ID_BADGE"
+              )
+        )
+    `);
+    await sequelize.query(`
+        DELETE FROM "PEDIDO"
+        WHERE "ESTADO_PEDIDO" IN (${estados})
+          AND "ID_PEDIDO" NOT IN (
+              SELECT MAX("ID_PEDIDO")
+              FROM "PEDIDO"
+              WHERE "ESTADO_PEDIDO" IN (${estados})
+              GROUP BY "ID_UTILIZADOR", "ID_BADGE"
+          )
+    `);
+};
 
 const normalizarStatusAdmin = (estado) => {
     if (['Pendente', 'Em Análise TM', 'Em Análise SLL'].includes(estado)) return 'Em Validação';
@@ -170,6 +199,7 @@ const formatarEvidencias = (evidencias, requisitosBadge = [], nivelLetra = '') =
 
 controllers.getHistoricoConsultor = async (req, res) => {
     try {
+        await limparPedidosAtivosDuplicados();
         const { idUtilizador } = req.params;
         const pedidos = await Pedido.findAll({
             where: { ID_UTILIZADOR: idUtilizador },
@@ -354,6 +384,7 @@ controllers.renovarPedido = async (req, res) => {
 
 controllers.getPendentesTM = async (req, res) => {
     try {
+        await limparPedidosAtivosDuplicados();
         const pedidos = await Pedido.findAll({
             where: { ESTADO_PEDIDO: { [Op.in]: ['Pendente', 'Em Análise TM'] } },
             include: [Utilizador, { model: Badge, include: [Nivel] }],
@@ -541,6 +572,7 @@ controllers.tomarDecisaoTM = async (req, res) => {
 
 controllers.getHistoricoTM = async (req, res) => {
     try {
+        await limparPedidosAtivosDuplicados();
         const historicos = await HistoricoPedido.findAll({
             where: { PERFIL_DECISOR: 'Talent Manager' },
             include: [Utilizador],
@@ -607,6 +639,7 @@ controllers.getHistoricoTM = async (req, res) => {
 
 controllers.getPendentesSLL = async (req, res) => {
     try {
+        await limparPedidosAtivosDuplicados();
         const serviceLine = await obterServiceLineSLL(req);
         if (!serviceLine) {
             return res.status(400).json({ success: false, message: 'Service Line do SLL não identificada' });
@@ -851,6 +884,7 @@ controllers.getHistoricoSLL = async (req, res) => {
 
 controllers.getTodosPedidosAdmin = async (req, res) => {
     try {
+        await limparPedidosAtivosDuplicados();
         const pedidos = await Pedido.findAll({
             include: [Utilizador, { model: Badge, include: [Nivel] }]
         });
