@@ -14,7 +14,7 @@ const isCloudinaryConfigured = () => Boolean(
 const getApiOrigin = (req) => (
     process.env.PUBLIC_API_URL ||
     process.env.BACKEND_URL ||
-    `${req.protocol}://${req.get('host')}`
+    `${String(req?.get?.('x-forwarded-proto') || req?.protocol || 'http').split(',')[0]}://${req.get('host')}`
 ).replace(/\/$/, '');
 
 const sanitizeFilename = (name = 'ficheiro') => {

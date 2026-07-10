@@ -28,6 +28,7 @@ const avisoRoutes = require('./routes/avisoRoutes');
 const adminConquistasRoutes = require('./routes/adminConquistasRoutes');
 const mobileRoutes = require('./routes/mobileRoutes');
 const meusBadgesController = require('./controllers/meusBadgesController');
+const pedidosController = require('./controllers/pedidosController');
 const startCronJobs = require('./cron/expiracaoCron');
 const seedDatabase = require('./seed');
 
@@ -75,6 +76,7 @@ app.get('/meus-badges/galeria/:idUtilizador', meusBadgesController.getGaleriaPub
 app.get('/partilha/linkedin/badge/:linkUnico', meusBadgesController.getPartilhaLinkedInBadge);
 app.get('/partilha/linkedin/premium/:idUtilizador/:idMarco', meusBadgesController.getPartilhaLinkedInEspecial);
 app.get('/partilha/linkedin/galeria/:idUtilizador', meusBadgesController.getPartilhaLinkedInGaleria);
+app.get('/ficheiros/evidencias/:idEvidencia/:nomeFicheiro?', pedidosController.servirFicheiroEvidencia);
 
 app.use('/dashboard/consultor', middleware.checkToken, dashboardConsultorRoutes);
 app.use('/catalogo', middleware.checkToken, catalogoRoutes);

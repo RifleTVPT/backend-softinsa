@@ -17,7 +17,8 @@ const MarcoConsultor = require('../models/MarcoConsultor');
 const ObjetivoTimeline = require('../models/ObjetivoTimeline');
 const Notificacao = require('../models/Notificacao');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
-const { uploadBuffer } = require('../services/cloudFileService');
+const { getApiOrigin, uploadBuffer } = require('../services/cloudFileService');
+const pushService = require('../services/pushService');
 
 const controllers = {};
 
@@ -42,6 +43,14 @@ const inferMimeFromName = (name = '') => {
         '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     };
     return mimes[ext] || 'application/octet-stream';
+};
+
+const urlPublicaEvidencia = (req, evidencia) => {
+    if (!evidencia.URL_FICHEIRO || String(evidencia.URL_FICHEIRO).includes('/uploads/simulacao/')) {
+        return evidencia.URL_FICHEIRO;
+    }
+    const nome = encodeURIComponent(path.basename(evidencia.NOME_FICHEIRO || 'ficheiro'));
+    return `${getApiOrigin(req)}/ficheiros/evidencias/${evidencia.ID_EVIDENCIA}/${nome}`;
 };
 
 controllers.sincronizarConsultor = async (req, res) => {
@@ -84,6 +93,11 @@ controllers.sincronizarConsultor = async (req, res) => {
         ]);
 
         const json = items => items.map(item => item.toJSON());
+        const evidenciasJson = evidencias.map(evidencia => ({
+            ...evidencia.toJSON(),
+            URL_FICHEIRO_ORIGINAL: evidencia.URL_FICHEIRO,
+            URL_FICHEIRO: urlPublicaEvidencia(req, evidencia)
+        }));
         res.json({
             success: true,
             data: {
@@ -98,7 +112,7 @@ controllers.sincronizarConsultor = async (req, res) => {
                 requisitos: json(requisitos),
                 consultor_badges: json(consultorBadges),
                 pedidos: json(pedidos),
-                evidencias: json(evidencias),
+                evidencias: evidenciasJson,
                 marcos: json(marcos),
                 marcos_consultor: json(marcosConsultor),
                 objetivos: json(objetivos),
@@ -181,6 +195,32 @@ controllers.receberPedidoMobile = async (req, res) => {
                 REQUISITO_MAPEADO: null
             });
         }
+
+        const [utilizador, badgeSubmetido, talentManagers] = await Promise.all([
+            Utilizador.findByPk(idUtilizadorLogado),
+            Badge.findByPk(idBadge),
+            Utilizador.findAll({
+                where: {
+                    ESTADO_CONTA_UTILIZADOR: 'Ativo',
+                    PERFIL_UTILIZADOR: { [Op.like]: '%Talent Manager%' }
+                }
+            })
+        ]);
+
+        const nomeConsultor = utilizador?.NOME_COMPLETO_UTILIZADOR || `Utilizador ${idUtilizadorLogado}`;
+        const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
+        const mensagemTalent = `${nomeConsultor} submeteu uma candidatura ao badge "${nomeBadge}" através da app mobile. Aceda a Validações → Pedidos Pendentes para analisar as evidências.`;
+        for (const talent of talentManagers) {
+            pushService.sendPush(
+                talent.ID_UTILIZADOR,
+                'info',
+                'Nova Candidatura para Validação',
+                mensagemTalent,
+                'pedidos',
+                'Talent Manager'
+            );
+        }
+
         return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.', idPedido: novoPedido.ID_PEDIDO });
 
     } catch (error) {

@@ -15,9 +15,12 @@ const { Op } = require('sequelize');
 const { obterServiceLineSLL: resolverServiceLineSLL } = require('../utils/sllServiceLineHelper');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const mailer = require('../config/mailer');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { avaliarConquistasConsultor } = require('../services/conquistaService');
+const { getApiOrigin } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -125,7 +128,7 @@ const badgePertenceServiceLine = (badge, serviceLine) => {
     }
 };
 
-const resolverUrlEvidencia = evidencia => {
+const resolverUrlGuardadoEvidencia = evidencia => {
     const urlGuardado = evidencia.URL_FICHEIRO;
     if (urlGuardado && !urlGuardado.includes('/uploads/simulacao/')) return urlGuardado;
 
@@ -148,7 +151,102 @@ const resolverUrlEvidencia = evidencia => {
     }
 };
 
-const formatarEvidencias = (evidencias, requisitosBadge = [], nivelLetra = '') => {
+const resolverUrlPublicaEvidencia = (req, evidencia) => {
+    const urlGuardado = resolverUrlGuardadoEvidencia(evidencia);
+    if (!urlGuardado) return null;
+    const nome = encodeURIComponent(path.basename(evidencia.NOME_FICHEIRO || 'ficheiro'));
+    return `${getApiOrigin(req)}/ficheiros/evidencias/${evidencia.ID_EVIDENCIA}/${nome}`;
+};
+
+const inferirMimeEvidencia = (nome = '') => {
+    const ext = path.extname(String(nome)).toLowerCase();
+    const mimes = {
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain; charset=utf-8',
+        '.csv': 'text/csv; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml; charset=utf-8',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    };
+    return mimes[ext] || 'application/octet-stream';
+};
+
+const nomeDownloadSeguro = nome => {
+    const original = path.basename(String(nome || 'evidencia'));
+    const ascii = original.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_') || 'evidencia';
+    return { original, ascii };
+};
+
+const obterBufferRemoto = url => new Promise((resolve, reject) => {
+    const cliente = url.startsWith('https:') ? https : http;
+    cliente.get(url, response => {
+        if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+            response.resume();
+            const destino = new URL(response.headers.location, url).toString();
+            return resolve(obterBufferRemoto(destino));
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            response.resume();
+            return reject(new Error(`Falha ao obter ficheiro (${response.statusCode}).`));
+        }
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+    }).on('error', reject);
+});
+
+const obterBufferEvidencia = async (req, evidencia) => {
+    const url = resolverUrlGuardadoEvidencia(evidencia);
+    if (!url) return null;
+
+    if (/^https?:\/\//i.test(url)) {
+        return obterBufferRemoto(url);
+    }
+
+    const caminhoLocal = url.startsWith('/uploads/')
+        ? path.join(__dirname, '../../uploads', path.basename(url))
+        : path.resolve(__dirname, '../../uploads', path.basename(url));
+    if (!fs.existsSync(caminhoLocal)) return null;
+    return fs.promises.readFile(caminhoLocal);
+};
+
+controllers.servirFicheiroEvidencia = async (req, res) => {
+    try {
+        const evidencia = await Evidencia.findByPk(req.params.idEvidencia);
+        if (!evidencia) return res.status(404).send('Ficheiro não encontrado.');
+
+        const buffer = await obterBufferEvidencia(req, evidencia);
+        if (!buffer) return res.status(404).send('Ficheiro indisponível.');
+
+        const nome = nomeDownloadSeguro(evidencia.NOME_FICHEIRO);
+        const mime = inferirMimeEvidencia(evidencia.NOME_FICHEIRO);
+        const disposition = req.query.download === '1' ? 'attachment' : 'inline';
+
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=300');
+        res.setHeader(
+            'Content-Disposition',
+            `${disposition}; filename="${nome.ascii}"; filename*=UTF-8''${encodeURIComponent(nome.original)}`
+        );
+        return res.end(buffer);
+    } catch (error) {
+        console.error('Erro ao servir evidência:', error);
+        return res.status(500).send('Erro ao abrir ficheiro.');
+    }
+};
+
+const formatarEvidencias = (req, evidencias, requisitosBadge = [], nivelLetra = '') => {
     const requisitosOrdenados = requisitosBadge.slice().sort((a, b) =>
         (a.ORDEM_REQUISITO ?? a.ID_REQUISITO) - (b.ORDEM_REQUISITO ?? b.ID_REQUISITO)
     );
@@ -168,7 +266,7 @@ const formatarEvidencias = (evidencias, requisitosBadge = [], nivelLetra = '') =
         return ordemA - ordemB || a.ID_EVIDENCIA - b.ID_EVIDENCIA;
     })
     .map(e => {
-        const url = resolverUrlEvidencia(e);
+        const url = resolverUrlPublicaEvidencia(req, e);
         const tituloGuardado = e.Requisito?.TITULO_REQUISITO;
         const indice = indicePorRequisito.get(e.ID_REQUISITO);
         const tituloApresentacao = tituloGuardado && !/^Requisito \d+$/i.test(tituloGuardado)
@@ -312,7 +410,7 @@ controllers.getDetalhesPedido = async (req, res) => {
                 acao: `${h.TIPO_ACAO}${h.COMENTARIO_VALIDADOR ? ' com comentário: ' + h.COMENTARIO_VALIDADOR : ''}`,
                 iconType: h.STATUS_RESULTADO || 'info'
             })),
-            evidencias: formatarEvidencias(evidencias, requisitosBadge, nivelLetra).map(e => ({
+            evidencias: formatarEvidencias(req, evidencias, requisitosBadge, nivelLetra).map(e => ({
                 ...e,
                 status: pedido.ESTADO_PEDIDO
             }))
@@ -455,16 +553,8 @@ controllers.getDetalhesAnalisarTM = async (req, res) => {
             estado: pedido.ESTADO_PEDIDO,
             reqsNecessarios: totalRequisitos,
             timeline: historicos.map(h => ({ data: new Date(h.DATA_REGISTO_PEDIDO).toLocaleString('pt-PT'), user: h.Utilizador?.NOME_COMPLETO_UTILIZADOR || 'Sistema', acao: `${h.TIPO_ACAO}${h.COMENTARIO_VALIDADOR ? ` — ${h.COMENTARIO_VALIDADOR}` : ''}` })),
-            evidencias: formatarEvidencias(evidencias, requisitosBadge, nivelLetra).map(e => ({
-                req: e.Requisito?.TITULO_REQUISITO || (e.ID_REQUISITO ? `Requisito ${e.ID_REQUISITO}` : 'Não mapeado'),
-                codigoReq: e.REQUISITO_MAPEADO || null,
-                descricaoReq: e.Requisito?.DESCRICAO_REQUISITO || '',
-                ficheiro: e.NOME_FICHEIRO || 'Documento',
-                doc: e.NOME_FICHEIRO || 'Documento',
-                url: e.URL_FICHEIRO && !e.URL_FICHEIRO.includes('/uploads/simulacao/')
-                    ? e.URL_FICHEIRO
-                    : null,
-                disponivel: Boolean(e.URL_FICHEIRO && !e.URL_FICHEIRO.includes('/uploads/simulacao/')),
+            evidencias: formatarEvidencias(req, evidencias, requisitosBadge, nivelLetra).map(e => ({
+                ...e,
                 status: pedido.ESTADO_PEDIDO,
                 color: 'text-primary'
             }))
