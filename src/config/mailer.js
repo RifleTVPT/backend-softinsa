@@ -22,12 +22,44 @@ const canalPermitido = (matriz, eventoId, perfilStr, canal) => {
 
 // Create a reusable transporter object using SMTP transport
 // In development, you can use Ethereal (https://ethereal.email/)
-const createTransporter = async (config) => {
+const normalizarSmtpConfig = (config = {}) => {
     let host = config?.SMTP_HOST || process.env.SMTP_HOST;
-    let port = config?.SMTP_PORT || process.env.SMTP_PORT || 587;
+    let port = Number(config?.SMTP_PORT || process.env.SMTP_PORT || 587);
     let secure = config?.SMTP_SECURE ?? (process.env.SMTP_SECURE === 'true');
     let user = config?.SMTP_USER || process.env.SMTP_USER;
     let pass = String(config?.SMTP_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
+
+    if (port === 465) secure = true;
+    if (port === 587 || port === 25) secure = false;
+
+    return {
+        host,
+        port,
+        secure,
+        user,
+        pass
+    };
+};
+
+const opcoesTransporte = ({ host, port, secure, user, pass }) => ({
+    host,
+    port,
+    secure,
+    requireTLS: !secure,
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 15000,
+    auth: { user, pass },
+    tls: {
+        minVersion: 'TLSv1.2',
+        servername: host
+    }
+});
+
+// Create a reusable transporter object using SMTP transport
+// In development, you can use Ethereal (https://ethereal.email/)
+const createTransporter = async (config) => {
+    let { host, port, secure, user, pass } = normalizarSmtpConfig(config);
 
     if (!host || !user) {
         let testAccount = await nodemailer.createTestAccount();
@@ -38,36 +70,34 @@ const createTransporter = async (config) => {
         pass = testAccount.pass;
     }
 
-    return nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass }
-    });
+    return nodemailer.createTransport(opcoesTransporte({ host, port, secure, user, pass }));
 };
 
 const testSmtp = async (smtpConfig, destinatario) => {
-    const host = String(smtpConfig.SMTP_HOST || '').trim();
-    const port = Number(smtpConfig.SMTP_PORT || 587);
-    const user = String(smtpConfig.SMTP_USER || '').trim();
-    const pass = String(smtpConfig.SMTP_PASS || '').replace(/\s+/g, '');
-    const secure = smtpConfig.SMTP_SECURE === true;
+    const { host, port, secure, user, pass } = normalizarSmtpConfig(smtpConfig);
     if (!host || !user || !pass) {
         throw new Error('Preencha o servidor SMTP, o utilizador e a password antes de testar.');
     }
-    const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass }
-    });
-    await transporter.verify();
-    return transporter.sendMail({
-        from: `"Plataforma de Badges Softinsa" <${user}>`,
-        to: destinatario,
-        subject: 'Teste SMTP - Plataforma de Badges Softinsa',
-        html: '<h2>Configuração SMTP válida</h2><p>Este email confirma que a Plataforma de Badges Softinsa consegue enviar mensagens com as credenciais configuradas.</p>'
-    });
+    const transporter = nodemailer.createTransport(opcoesTransporte({ host, port, secure, user, pass }));
+    try {
+        await transporter.verify();
+        return await transporter.sendMail({
+            from: `"Plataforma de Badges Softinsa" <${user}>`,
+            to: destinatario,
+            subject: 'Teste SMTP - Plataforma de Badges Softinsa',
+            html: '<h2>Configuração SMTP válida</h2><p>Este email confirma que a Plataforma de Badges Softinsa consegue enviar mensagens com as credenciais configuradas.</p>'
+        });
+    } catch (error) {
+        if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET' || error.message?.toLowerCase().includes('timeout')) {
+            throw new Error(`Timeout ao ligar ao SMTP ${host}:${port}. Confirme host, porta, SSL e se o Render consegue sair para esse servidor.`);
+        }
+        if (error.code === 'EAUTH' || error.responseCode === 535) {
+            throw new Error('Autenticação SMTP falhou. No Gmail use uma palavra-passe de app de 16 caracteres, não a password normal da conta.');
+        }
+        throw error;
+    } finally {
+        transporter.close();
+    }
 };
 
 let transporterInstance = null;
