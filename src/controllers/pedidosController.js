@@ -21,6 +21,7 @@ const mailer = require('../config/mailer');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { avaliarConquistasConsultor } = require('../services/conquistaService');
 const { getApiOrigin } = require('../services/cloudFileService');
+const pushService = require('../services/pushService');
 
 const controllers = {};
 
@@ -925,7 +926,7 @@ controllers.tomarDecisaoSLL = async (req, res) => {
                 ? `A candidatura ao badge "${nomeBadge}" foi aceite por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`
                 : `A candidatura ao badge "${nomeBadge}" foi rejeitada por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`;
             if (novoEstado === 'Rascunho') {
-                mensagem = `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador} Para corrigir o pedido, aceda ao Dashboard → Jornada Técnica → Continuar. Reveja ou substitua as evidências indicadas e submeta novamente a candidatura.`;
+                mensagem = `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador} Para corrigir o pedido, aceda ao Dashboard → Aprendizagens Ativas → Continuar. Reveja ou substitua as evidências indicadas e submeta novamente a candidatura.`;
             }
             pushService.sendPush(utilizador.ID_UTILIZADOR, novoEstado === 'Aceite' ? 'success' : 'warning', titulos[novoEstado], mensagem, 'validacao', utilizador.PERFIL_UTILIZADOR);
             try {
@@ -1068,9 +1069,25 @@ controllers.getTodosPedidosAdmin = async (req, res) => {
 controllers.eliminarPedidoAdmin = async (req, res) => {
     try {
         const { id } = req.params;
-        const pedido = await Pedido.findByPk(id);
+        const pedido = await Pedido.findByPk(id, {
+            include: [
+                { model: Badge },
+                { model: Utilizador }
+            ]
+        });
         if (!pedido) return res.status(404).json({ success: false, message: "Pedido não encontrado" });
         await pedido.update({ ESTADO_PEDIDO: 'Eliminado', DATA_ULTIMA_ATUALIZACAO: new Date() });
+        const admin = req.userId ? await Utilizador.findByPk(req.userId) : null;
+        const nomeAdmin = admin?.NOME_COMPLETO_UTILIZADOR || 'Administrador';
+        const nomeBadge = pedido.Badge?.NOME_BADGE || 'badge solicitado';
+        await pushService.sendPush(
+            pedido.ID_UTILIZADOR,
+            'warning',
+            'Pedido eliminado',
+            `${nomeAdmin} eliminou o seu pedido para o badge "${nomeBadge}". Se pretender obter este badge, terá de submeter uma nova candidatura.`,
+            'pedidos',
+            'Consultor'
+        );
         res.json({ success: true, message: 'Pedido eliminado' });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });

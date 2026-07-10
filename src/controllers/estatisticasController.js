@@ -598,7 +598,6 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
 
         // 1. KPIs Topo
         const totalUtilizadores = await Utilizador.count({ where: { ESTADO_CONTA_UTILIZADOR: 'Ativo' } });
-        const totalPedidos = await Pedido.count();
         const pedidosAceites = await Pedido.count({ where: { ESTADO_PEDIDO: 'Aceite' } });
         const pedidosRecusados = await Pedido.count({ where: { ESTADO_PEDIDO: 'Recusado' } });
         const totalDecididos = pedidosAceites + pedidosRecusados;
@@ -645,9 +644,9 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
 
         const statsTopo = [
             { label: "Total de Acessos na Plataforma", valor: totalAcessos.toString(), trend: `${trendAcessos >= 0 ? '+' : ''} ${trendAcessos} % vs mês passado`, color: trendAcessos >= 0 ? "text-success" : "text-danger" },
-            { label: "Utilizadores Ativos", valor: totalUtilizadores.toString(), trend: `${trendUsers >= 0 ? '+' : ''} ${trendUsers} % vs mês passado`, color: trendUsers >= 0 ? "text-success" : "text-danger" },
+            { label: "Utilizadores Ativos", valor: totalUtilizadores.toString(), trend: `${usersEsteMes} novos ativos este mês`, color: "text-primary" },
             { label: "Taxa de Interação", valor: `${taxaInteracao} %`, trend: "Engagement Mensal", color: "text-primary" },
-            { label: "Taxa Aprovação Badges", valor: `${taxaAprovacao} %`, trend: `${trendAprovacao >= 0 ? '+' : ''} ${trendAprovacao} % vs mês passado`, color: trendAprovacao >= 0 ? "text-success" : "text-danger" }
+            { label: "Taxa Aprovação Badges", valor: `${taxaAprovacao} %`, trend: `${trendAprovacao >= 0 ? '+' : ''} ${trendAprovacao} p.p. vs mês passado`, color: trendAprovacao >= 0 ? "text-success" : "text-danger" }
         ];
 
         // 2. Acessos 7 Dias Reais
@@ -690,7 +689,9 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
             slCounts[slName] = (slCounts[slName] || 0) + 1;
         });
 
-        const dadosBadgesSL = Object.keys(slCounts).map(k => ({ sl: k.substring(0, 15), total: slCounts[k] })).sort((a,b) => b.total - a.total);
+        const dadosBadgesSL = Object.keys(slCounts)
+            .map(k => ({ sl: k.substring(0, 15), slCompleta: k, total: slCounts[k] }))
+            .sort((a,b) => b.total - a.total);
         if(dadosBadgesSL.length === 0) dadosBadgesSL.push({ sl: 'Sem dados', total: 1 });
 
         // 4. Áreas com Maior Interesse (Pedidos + Registos)
@@ -783,7 +784,33 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
                 dadosAcessos7Dias,
                 dadosBadgesSL,
                 utilizadoresAtivos,
-                areasInteresse: topAreas
+                areasInteresse: topAreas,
+                detalhesCalculo: {
+                    aprovacao: {
+                        aceites: pedidosAceites,
+                        recusados: pedidosRecusados,
+                        totalDecididos,
+                        regra: 'Taxa = pedidos Aceites / (pedidos Aceites + pedidos Recusados). Pedidos eliminados, rascunhos, pendentes e devolvidos não entram no cálculo.'
+                    },
+                    interacao: {
+                        acessosEsteMes,
+                        utilizadoresAtivos: totalUtilizadores,
+                        totalPotencial,
+                        regra: 'Taxa = acessos do mês atual / (utilizadores ativos * 30 dias), limitada a 100%.'
+                    },
+                    utilizadoresAtivos: {
+                        totalAtual: totalUtilizadores,
+                        novosAtivosEsteMes: usersEsteMes,
+                        novosAtivosMesAnterior: usersMesPassado,
+                        regra: 'O total mostra contas atualmente ativas. O texto inferior mostra quantas contas ativas foram criadas/aprovadas neste mês.'
+                    },
+                    areasInteresse: {
+                        regra: 'Interações = pedidos submetidos para badges da área + registos de utilizadores que escolheram essa área.'
+                    },
+                    utilizadoresMaisAtivos: {
+                        regra: 'Ordenação por pontos conquistados, incluindo badges normais e premium. Em caso de empate, a tabela mantém a ordem devolvida pela base de dados.'
+                    }
+                }
             }
         });
     } catch(e) {

@@ -79,7 +79,7 @@ controllers.testarEmail = async (req, res) => {
         if (!utilizador?.EMAIL_UTILIZADOR) {
             return res.status(404).json({ success: false, message: 'Email do administrador não encontrado.' });
         }
-        mailer.testSmtp(req.body, utilizador.EMAIL_UTILIZADOR);
+        await mailer.testSmtp(req.body, utilizador.EMAIL_UTILIZADOR);
         res.json({
             success: true,
             message: `Ligação SMTP validada. Foi enviado um email de teste para ${utilizador.EMAIL_UTILIZADOR}.`

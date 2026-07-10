@@ -16,7 +16,9 @@ const MarcoConquista = require('../models/MarcoConquista');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const ObjetivoTimeline = require('../models/ObjetivoTimeline');
 const Notificacao = require('../models/Notificacao');
+const AvisoGeral = require('../models/AvisoGeral');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
+const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const { getApiOrigin, uploadEvidenceBuffer } = require('../services/cloudFileService');
 const pushService = require('../services/pushService');
 const mailer = require('../config/mailer');
@@ -81,7 +83,7 @@ controllers.sincronizarConsultor = async (req, res) => {
         const idsPedidos = pedidos.map(p => p.ID_PEDIDO);
         const [
             serviceLines, areas, niveis, badges, requisitos, consultorBadges,
-            evidencias, marcos, marcosConsultor, objetivos, notificacoes, historicoPontos, todosConsultores
+            evidencias, marcos, marcosConsultor, objetivos, notificacoes, avisosGerais, historicoPontos, todosConsultores
         ] = await Promise.all([
             ServiceLine.findAll(),
             Area.findAll(),
@@ -97,6 +99,13 @@ controllers.sincronizarConsultor = async (req, res) => {
                 where: { ID_UTILIZADOR: idUtilizador },
                 order: [['DATA_ENVIO_NOTIFICACAO', 'DESC']]
             }),
+            AvisoGeral.findAll({
+                where: {
+                    ESTADO_AVISO: 'Ativo',
+                    VISIBILIDADE_AVISO: { [Op.in]: ['Todos', 'Consultor'] }
+                },
+                order: [['DATA_PUBLICACAO_AVISO', 'DESC']]
+            }),
             HistoricoPontuacao.findAll({ where: { ID_UTILIZADOR: idUtilizador } }),
             Consultor.findAll()
         ]);
@@ -107,6 +116,18 @@ controllers.sincronizarConsultor = async (req, res) => {
             URL_FICHEIRO_ORIGINAL: evidencia.URL_FICHEIRO,
             URL_FICHEIRO: urlPublicaEvidencia(req, evidencia)
         }));
+        const notificacoesJson = [
+            ...json(notificacoes),
+            ...avisosGerais.map(aviso => ({
+                ID_NOTIFICACAO: -aviso.ID_AVISO,
+                TITULO_NOTIFICACAO: aviso.TITULO_AVISO,
+                MENSAGEM_NOTIFICACAO: aviso.CONTEUDO_AVISO,
+                DATA_ENVIO_NOTIFICACAO: aviso.DATA_PUBLICACAO_AVISO,
+                TIPO_NOTIFICACAO: aviso.TIPO_NOTIFICACAO || 'aviso_global',
+                ESTADO_LIDO: false
+            }))
+        ].sort((a, b) => new Date(b.DATA_ENVIO_NOTIFICACAO) - new Date(a.DATA_ENVIO_NOTIFICACAO));
+
         res.json({
             success: true,
             data: {
@@ -125,7 +146,7 @@ controllers.sincronizarConsultor = async (req, res) => {
                 marcos: json(marcos),
                 marcos_consultor: json(marcosConsultor),
                 objetivos: json(objetivos),
-                notificacoes: json(notificacoes),
+                notificacoes: notificacoesJson,
                 historico_pontos: json(historicoPontos)
             }
         });
@@ -233,6 +254,12 @@ controllers.receberPedidoMobile = async (req, res) => {
         const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
         if (utilizador) {
             const mensagemConfirmacao = `A sua candidatura ao badge "${nomeBadge}" foi submetida através da app mobile e enviada para análise do Talent Manager.`;
+            await LogAtividadeSistema.create({
+                ID_UTILIZADOR: utilizador.ID_UTILIZADOR,
+                TIPO_ATIVIDADE: 'Candidatura Mobile',
+                DETALHES_ATIVIDADE: `${utilizador.NOME_COMPLETO_UTILIZADOR} submeteu candidatura ao badge "${nomeBadge}" através da app mobile.`,
+                DATA_HORA_ATIVIDADE: new Date()
+            });
             pushService.sendPush(
                 utilizador.ID_UTILIZADOR,
                 'info',
