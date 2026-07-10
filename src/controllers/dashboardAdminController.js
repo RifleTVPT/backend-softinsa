@@ -102,7 +102,7 @@ controllers.getDashboardAdminData = async (req, res) => {
                 action: 'Ver Pedido',
                 link: `/admin/badges/pedidos/detalhes/${p.ID_PEDIDO}`,
                 date: p.DATA_SUBMISSAO_PEDIDO,
-                badgeImg: p.Badge?.IMAGEM_BADGE || 'https://cdn-icons-png.flaticon.com/512/3112/3112946.png'
+                badgeImg: p.Badge?.URL_IMAGEM || null
             });
         }
 
