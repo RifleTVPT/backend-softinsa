@@ -82,30 +82,36 @@ const startCronJobs = () => {
                 }
             }
 
-            // Lembretes de objetivos do consultor (7 dias, 1 dia e no próprio dia).
+            // Lembretes de objetivos do consultor (7, 3, 1 dias, no próprio dia e 1 dia em atraso).
             const inicioHoje = new Date(dataAtual);
             inicioHoje.setHours(0, 0, 0, 0);
             const fimHoje = new Date(dataAtual);
             fimHoje.setHours(23, 59, 59, 999);
             const objetivosAtivos = await ObjetivoTimeline.findAll({
-                where: { STATUS: { [Op.ne]: 'Concluído' } }
+                where: {
+                    STATUS: {
+                        [Op.notIn]: ['Concluído', 'Concluido', 'Concluída', 'Concluida']
+                    }
+                }
             });
 
             for (const objetivo of objetivosAtivos) {
                 const dataObjetivo = new Date(objetivo.DATA_OBJETIVO);
                 dataObjetivo.setHours(0, 0, 0, 0);
                 const diasRestantes = Math.ceil((dataObjetivo - inicioHoje) / (1000 * 60 * 60 * 24));
-                if (![7, 1, 0].includes(diasRestantes)) continue;
+                if (![7, 3, 1, 0, -1].includes(diasRestantes)) continue;
 
                 const utilizador = await Utilizador.findByPk(objetivo.ID_UTILIZADOR);
                 if (!utilizador) continue;
 
-                const titulo = diasRestantes === 0
-                    ? 'Objetivo termina hoje'
-                    : 'Lembrete de objetivo';
-                const prazo = diasRestantes === 0
-                    ? 'termina hoje'
-                    : `termina dentro de ${diasRestantes} ${diasRestantes === 1 ? 'dia' : 'dias'}`;
+                const titulo = diasRestantes < 0
+                    ? 'Objetivo em atraso'
+                    : (diasRestantes === 0 ? 'Objetivo termina hoje' : 'Lembrete de objetivo');
+                const prazo = diasRestantes < 0
+                    ? 'terminou ontem'
+                    : (diasRestantes === 0
+                        ? 'termina hoje'
+                        : `termina dentro de ${diasRestantes} ${diasRestantes === 1 ? 'dia' : 'dias'}`);
                 const msg = `O objetivo "${objetivo.TITULO}" ${prazo}. Consulte Objetivos e Timeline para acompanhar ou concluir esta meta.`;
                 const jaEnviado = await Notificacao.findOne({
                     where: {

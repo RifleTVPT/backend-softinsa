@@ -19,6 +19,7 @@ const Notificacao = require('../models/Notificacao');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { getApiOrigin, uploadEvidenceBuffer } = require('../services/cloudFileService');
 const pushService = require('../services/pushService');
+const mailer = require('../config/mailer');
 
 const controllers = {};
 
@@ -230,6 +231,32 @@ controllers.receberPedidoMobile = async (req, res) => {
 
         const nomeConsultor = utilizador?.NOME_COMPLETO_UTILIZADOR || `Utilizador ${idUtilizadorLogado}`;
         const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
+        if (utilizador) {
+            const mensagemConfirmacao = `A sua candidatura ao badge "${nomeBadge}" foi submetida através da app mobile e enviada para análise do Talent Manager.`;
+            pushService.sendPush(
+                utilizador.ID_UTILIZADOR,
+                'info',
+                'Candidatura Enviada para o Talent Manager',
+                mensagemConfirmacao,
+                'pedidos',
+                'Consultor'
+            );
+            try {
+                mailer.sendEmail(
+                    utilizador.EMAIL_UTILIZADOR,
+                    'Confirmação de Candidatura - Plataforma de Badges Softinsa',
+                    `<h2>Candidatura submetida com sucesso</h2>
+                     <p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>
+                     <p>${mensagemConfirmacao}</p>
+                     <p>Pode acompanhar o estado em <strong>Pedidos → Histórico de Pedidos</strong>.</p>`,
+                    'pedidos',
+                    'Consultor'
+                );
+            } catch (mailErr) {
+                console.error('Erro ao enviar email de confirmação mobile:', mailErr);
+            }
+        }
+
         const mensagemTalent = `${nomeConsultor} submeteu uma candidatura ao badge "${nomeBadge}" através da app mobile. Aceda a Validações → Pedidos Pendentes para analisar as evidências.`;
         for (const talent of talentManagers) {
             pushService.sendPush(
@@ -240,6 +267,19 @@ controllers.receberPedidoMobile = async (req, res) => {
                 'pedidos',
                 'Talent Manager'
             );
+            try {
+                mailer.sendEmail(
+                    talent.EMAIL_UTILIZADOR,
+                    'Nova Candidatura para Validação - Plataforma de Badges Softinsa',
+                    `<h2>Nova candidatura recebida</h2>
+                     <p>Olá, ${talent.NOME_COMPLETO_UTILIZADOR}.</p>
+                     <p>${mensagemTalent}</p>`,
+                    'pedidos',
+                    'Talent Manager'
+                );
+            } catch (mailErr) {
+                console.error('Erro ao enviar email de candidatura mobile para Talent Manager:', mailErr);
+            }
         }
 
         return res.status(201).json({ success: true, message: 'Pedido sincronizado com sucesso.', idPedido: novoPedido.ID_PEDIDO });
