@@ -12,7 +12,7 @@ const HistoricoPedido = require('../models/HistoricoPedido');
 const RegistoHistoricoPedido = require('../models/RegistoHistoricoPedido');
 const PreferenciasUtilizador = require('../models/PreferenciasUtilizador');
 const { Op } = require('sequelize');
-const { uploadDataUri, uploadMulterFile } = require('../services/cloudFileService');
+const { uploadDataUri, uploadMulterFile, uploadEvidenceMulterFile } = require('../services/cloudFileService');
 
 const controllers = {};
 
@@ -353,7 +353,7 @@ controllers.candidatar = async (req, res) => {
                 if (req.files && req.files.length > 0) {
                     const uploadedFile = req.files.find(f => ficheiroCorresponde(f, ev.nome));
                     if (uploadedFile) {
-                        const uploaded = await uploadMulterFile(req, uploadedFile, {
+                        const uploaded = await uploadEvidenceMulterFile(req, uploadedFile, {
                             folder: 'softinsa/evidencias',
                             resourceType: 'auto'
                         });
@@ -514,7 +514,7 @@ controllers.saveRascunho = async (req, res) => {
                 if (req.files && req.files.length > 0) {
                     const uploadedFile = req.files.find(f => ficheiroCorresponde(f, ev.nome));
                     if (uploadedFile) {
-                        const uploaded = await uploadMulterFile(req, uploadedFile, {
+                        const uploaded = await uploadEvidenceMulterFile(req, uploadedFile, {
                             folder: 'softinsa/evidencias',
                             resourceType: 'auto'
                         });

@@ -17,7 +17,7 @@ const MarcoConsultor = require('../models/MarcoConsultor');
 const ObjetivoTimeline = require('../models/ObjetivoTimeline');
 const Notificacao = require('../models/Notificacao');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
-const { getApiOrigin, uploadBuffer } = require('../services/cloudFileService');
+const { getApiOrigin, uploadEvidenceBuffer } = require('../services/cloudFileService');
 const pushService = require('../services/pushService');
 
 const controllers = {};
@@ -178,9 +178,9 @@ controllers.receberPedidoMobile = async (req, res) => {
         for (const ev of evidencias) {
             if (!ev.base64) continue;
 
-            const nomeSeguro = (ev.NOME_FICHEIRO || 'evidencia').replace(/[^a-zA-Z0-9.\-_]/g, '');
+            const nomeSeguro = path.basename(ev.NOME_FICHEIRO || 'evidencia').replace(/[\\/:*?"<>|]/g, '_');
             const buffer = Buffer.from(ev.base64, 'base64');
-            const uploaded = await uploadBuffer(req, buffer, {
+            const uploaded = await uploadEvidenceBuffer(req, buffer, {
                 folder: 'softinsa/evidencias',
                 originalname: nomeSeguro,
                 mimetype: ev.MIME_TYPE || ev.mimeType || inferMimeFromName(nomeSeguro),

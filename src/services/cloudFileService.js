@@ -149,6 +149,43 @@ const uploadMulterFile = (req, file, options = {}) => {
     return uploadBuffer(req, file.buffer, { originalname: file.originalname, mimetype: file.mimetype, ...options });
 };
 
+const isImageMime = (mimetype = '') => String(mimetype || '').toLowerCase().startsWith('image/');
+
+const createEvidenceEnvelope = ({ buffer, originalname, mimetype }) => Buffer.from(
+    `SOFTINSA_FILE_V1\n${JSON.stringify({
+        originalname: String(originalname || 'ficheiro'),
+        mimetype: String(mimetype || 'application/octet-stream'),
+        data: Buffer.from(buffer).toString('base64')
+    })}`,
+    'utf8'
+);
+
+const uploadEvidenceBuffer = async (req, buffer, options = {}) => {
+    const originalname = options.originalname || 'ficheiro';
+    const mimetype = options.mimetype || 'application/octet-stream';
+
+    if (isImageMime(mimetype)) {
+        return uploadBuffer(req, buffer, { ...options, resourceType: options.resourceType || 'auto' });
+    }
+
+    const envelope = createEvidenceEnvelope({ buffer, originalname, mimetype });
+    return uploadBuffer(req, envelope, {
+        ...options,
+        originalname: `${sanitizeFilename(originalname)}.softinsa.txt`,
+        mimetype: 'text/plain; charset=utf-8',
+        resourceType: 'raw'
+    });
+};
+
+const uploadEvidenceMulterFile = (req, file, options = {}) => {
+    if (!file?.buffer) throw new Error('Ficheiro enviado sem conteudo em memoria.');
+    return uploadEvidenceBuffer(req, file.buffer, {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        ...options
+    });
+};
+
 const uploadDataUri = async (req, dataUri, options = {}) => {
     const match = String(dataUri || '').match(/^data:([^;]+);base64,(.+)$/);
     if (!match) throw new Error('Imagem base64 invalida.');
@@ -157,4 +194,13 @@ const uploadDataUri = async (req, dataUri, options = {}) => {
     return uploadBuffer(req, Buffer.from(match[2], 'base64'), { ...options, originalname: withMimeExtension(options.originalname || `imagem_${Date.now()}${ext}`, mimetype), mimetype, resourceType: chooseResourceType(mimetype, options.resourceType || 'auto') });
 };
 
-module.exports = { getApiOrigin, isCloudinaryConfigured, sanitizeFilename, uploadBuffer, uploadDataUri, uploadMulterFile };
+module.exports = {
+    getApiOrigin,
+    isCloudinaryConfigured,
+    sanitizeFilename,
+    uploadBuffer,
+    uploadDataUri,
+    uploadMulterFile,
+    uploadEvidenceBuffer,
+    uploadEvidenceMulterFile
+};

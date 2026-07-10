@@ -220,16 +220,40 @@ const obterBufferEvidencia = async (req, evidencia) => {
     return fs.promises.readFile(caminhoLocal);
 };
 
+const extrairEnvelopeEvidencia = buffer => {
+    const marcador = 'SOFTINSA_FILE_V1\n';
+    if (!buffer || buffer.length < marcador.length) return null;
+    const inicio = buffer.subarray(0, marcador.length).toString('utf8');
+    if (inicio !== marcador) return null;
+
+    try {
+        const payload = JSON.parse(buffer.subarray(marcador.length).toString('utf8'));
+        if (!payload?.data) return null;
+        return {
+            buffer: Buffer.from(payload.data, 'base64'),
+            originalname: payload.originalname || 'ficheiro',
+            mimetype: payload.mimetype || 'application/octet-stream'
+        };
+    } catch (error) {
+        console.error('Envelope de evidência inválido:', error);
+        return null;
+    }
+};
+
 controllers.servirFicheiroEvidencia = async (req, res) => {
     try {
         const evidencia = await Evidencia.findByPk(req.params.idEvidencia);
         if (!evidencia) return res.status(404).send('Ficheiro não encontrado.');
 
-        const buffer = await obterBufferEvidencia(req, evidencia);
+        let buffer = await obterBufferEvidencia(req, evidencia);
         if (!buffer) return res.status(404).send('Ficheiro indisponível.');
 
-        const nome = nomeDownloadSeguro(evidencia.NOME_FICHEIRO);
-        const mime = inferirMimeEvidencia(evidencia.NOME_FICHEIRO);
+        const envelope = extrairEnvelopeEvidencia(buffer);
+        const nomeOriginal = envelope?.originalname || evidencia.NOME_FICHEIRO;
+        const mime = envelope?.mimetype || inferirMimeEvidencia(nomeOriginal);
+        if (envelope) buffer = envelope.buffer;
+
+        const nome = nomeDownloadSeguro(nomeOriginal);
         const disposition = req.query.download === '1' ? 'attachment' : 'inline';
 
         res.setHeader('Content-Type', mime);
