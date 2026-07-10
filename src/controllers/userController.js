@@ -202,16 +202,19 @@ controllers.updateConfiguracoes = async (req, res) => {
             { where: { ID_UTILIZADOR: idUtilizador } }
         );
 
-        await PreferenciasUtilizador.update(
-            {
-                IDIOMA_APP: idioma,
-                RECEBER_EMAIL_PEDIDOS: receberAprovacoes,
-                RECEBER_PUSH_EXPIRACAO: receberExpiracao,
-                EXIBIR_LINK_PUBLICO: partilharLinkedIn,
-                TERMOS_RGPD: termosRgpd !== undefined ? termosRgpd : false
-            },
-            { where: { ID_UTILIZADOR: idUtilizador } }
-        );
+        const preferenciasAtualizar = {};
+        if (idioma !== undefined) preferenciasAtualizar.IDIOMA_APP = idioma;
+        if (receberAprovacoes !== undefined) preferenciasAtualizar.RECEBER_EMAIL_PEDIDOS = receberAprovacoes;
+        if (receberExpiracao !== undefined) preferenciasAtualizar.RECEBER_PUSH_EXPIRACAO = receberExpiracao;
+        if (partilharLinkedIn !== undefined) preferenciasAtualizar.EXIBIR_LINK_PUBLICO = partilharLinkedIn;
+        if (termosRgpd !== undefined) preferenciasAtualizar.TERMOS_RGPD = termosRgpd;
+
+        if (Object.keys(preferenciasAtualizar).length > 0) {
+            await PreferenciasUtilizador.update(
+                preferenciasAtualizar,
+                { where: { ID_UTILIZADOR: idUtilizador } }
+            );
+        }
 
         res.json({ success: true, message: "Configurações guardadas com sucesso!" });
     } catch (error) {

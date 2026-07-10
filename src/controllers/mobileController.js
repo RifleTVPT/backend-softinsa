@@ -148,7 +148,7 @@ controllers.receberPedidoMobile = async (req, res) => {
 
             const nomeSeguro = (ev.NOME_FICHEIRO || 'evidencia').replace(/[^a-zA-Z0-9.\-_]/g, '');
             const buffer = Buffer.from(ev.base64, 'base64');
-            const uploaded = await uploadBuffer(buffer, {
+            const uploaded = await uploadBuffer(req, buffer, {
                 folder: 'softinsa/evidencias',
                 originalname: nomeSeguro,
                 mimetype: ev.MIME_TYPE || ev.mimeType || 'application/octet-stream',
@@ -197,15 +197,20 @@ controllers.sincronizarObjetivosOffline = async (req, res) => {
                     }
                 }
 
-                const obj = await ObjetivoTimeline.create({
-                    ID_UTILIZADOR: dados.ID_UTILIZADOR,
-                    TITULO: dados.TITULO,
-                    DESCRICAO: dados.DESCRICAO || null,
-                    DATA_OBJETIVO: dataObj,
-                    STATUS: dados.STATUS || 'Em Progresso',
-                    ORIGEM: dados.ORIGEM || 'Criado por mim',
-                    TIPO_OBJETIVO: dados.TIPO_OBJETIVO || 'Outro'
-                }, { transaction: t });
+                const [obj] = await ObjetivoTimeline.findOrCreate({
+                    where: {
+                        ID_UTILIZADOR: dados.ID_UTILIZADOR,
+                        TITULO: dados.TITULO,
+                        DATA_OBJETIVO: dataObj,
+                        TIPO_OBJETIVO: dados.TIPO_OBJETIVO || 'Outro'
+                    },
+                    defaults: {
+                        DESCRICAO: dados.DESCRICAO || null,
+                        STATUS: dados.STATUS || 'Em Progresso',
+                        ORIGEM: dados.ORIGEM || 'Criado por mim'
+                    },
+                    transaction: t
+                });
                 
                 if (dados.ID_OBJETIVO_LOCAL) {
                     mapIds[dados.ID_OBJETIVO_LOCAL] = obj.ID_OBJETIVO;
@@ -222,6 +227,16 @@ controllers.sincronizarObjetivosOffline = async (req, res) => {
                 );
             }
         }
+        await sequelize.query(`
+            DELETE FROM OBJETIVO_TIMELINE
+            WHERE ID_OBJETIVO NOT IN (
+                SELECT id_keep FROM (
+                    SELECT MIN(ID_OBJETIVO) AS id_keep
+                    FROM OBJETIVO_TIMELINE
+                    GROUP BY ID_UTILIZADOR, TITULO, DATA_OBJETIVO, TIPO_OBJETIVO
+                ) AS objetivos_unicos
+            )
+        `, { transaction: t });
         await t.commit();
         res.json({ success: true, message: 'Objetivos sincronizados com sucesso!' });
     } catch (error) {

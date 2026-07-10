@@ -126,6 +126,12 @@ const uploadToCloudinary = ({ buffer, originalname, mimetype, folder, resourceTy
 };
 
 const uploadBuffer = async (req, buffer, options = {}) => {
+    // Compatibilidade com chamadas antigas: uploadBuffer(buffer, options).
+    if (Buffer.isBuffer(req) || req instanceof Uint8Array) {
+        options = buffer || {};
+        buffer = Buffer.from(req);
+        req = null;
+    }
     let { originalname = 'ficheiro', mimetype = 'application/octet-stream', folder = 'softinsa/ficheiros', absoluteLocalUrl = false, resourceType = 'auto' } = options;
     resourceType = chooseResourceType(mimetype, resourceType);
     originalname = withMimeExtension(originalname, mimetype);
