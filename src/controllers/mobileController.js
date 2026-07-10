@@ -22,6 +22,14 @@ const pushService = require('../services/pushService');
 
 const controllers = {};
 
+const ESTADOS_PEDIDO_EM_VALIDACAO = ['Pendente', 'Em Análise TM', 'Em Análise SLL'];
+
+const badgeObtidoPermiteRenovacao = badgeObtido => {
+    if (!badgeObtido?.DATA_EXPIRACAO) return false;
+    const diasRestantes = Math.ceil((new Date(badgeObtido.DATA_EXPIRACAO) - new Date()) / (1000 * 60 * 60 * 24));
+    return diasRestantes <= 30;
+};
+
 const inferMimeFromName = (name = '') => {
     const ext = path.extname(String(name)).toLowerCase();
     const mimes = {
@@ -137,12 +145,25 @@ controllers.receberPedidoMobile = async (req, res) => {
         const idBadge = payload.ID_BADGE;
         const dataSubmissaoMobile = new Date(payload.DATA_SUBMISSAO_PEDIDO);
 
-        // 1. Procurar pedido existente não rascunho/recusado
+        const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: idUtilizadorLogado } });
+        if (consultor) {
+            const badgeJaObtido = await ConsultorBadge.findOne({
+                where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: idBadge }
+            });
+            if (badgeJaObtido && !badgeObtidoPermiteRenovacao(badgeJaObtido)) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Este badge já foi obtido. Só pode renovar quando a renovação estiver disponível.'
+                });
+            }
+        }
+
+        // 1. Procurar pedido realmente em validação. Eliminado/Recusado/Rascunho não bloqueiam novo pedido.
         let pedidoExistente = await Pedido.findOne({
             where: {
                 ID_UTILIZADOR: idUtilizadorLogado,
                 ID_BADGE: idBadge,
-                ESTADO_PEDIDO: { [Op.notIn]: ['Rascunho', 'Recusado'] }
+                ESTADO_PEDIDO: { [Op.in]: ESTADOS_PEDIDO_EM_VALIDACAO }
             }
         });
 

@@ -16,6 +16,14 @@ const { uploadDataUri, uploadMulterFile, uploadEvidenceMulterFile } = require('.
 
 const controllers = {};
 
+const ESTADOS_PEDIDO_EM_VALIDACAO = ['Pendente', 'Em Análise TM', 'Em Análise SLL'];
+
+const badgeObtidoPermiteRenovacao = badgeObtido => {
+    if (!badgeObtido?.DATA_EXPIRACAO) return false;
+    const diasRestantes = Math.ceil((new Date(badgeObtido.DATA_EXPIRACAO) - new Date()) / (1000 * 60 * 60 * 24));
+    return diasRestantes <= 30;
+};
+
 const nomeImagemBadge = (dataUri) => {
     const match = String(dataUri || '').match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
     const tipo = match?.[1] || 'png';
@@ -298,6 +306,36 @@ controllers.candidatar = async (req, res) => {
                 todosFicheiros = JSON.parse(req.body.todosFicheiros);
             }
         } catch(e) { console.error(e); }
+
+        const Consultor = require('../models/Consultor');
+        const ConsultorBadge = require('../models/ConsultorBadge');
+        const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: idUtilizador } });
+        if (consultor) {
+            const badgeJaObtido = await ConsultorBadge.findOne({
+                where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: idBadge }
+            });
+            if (badgeJaObtido && !badgeObtidoPermiteRenovacao(badgeJaObtido)) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Este badge já foi obtido. Só pode renovar quando a renovação estiver disponível.'
+                });
+            }
+        }
+
+        const pedidoEmCurso = await Pedido.findOne({
+            where: {
+                ID_UTILIZADOR: idUtilizador,
+                ID_BADGE: idBadge,
+                ESTADO_PEDIDO: { [Op.in]: ESTADOS_PEDIDO_EM_VALIDACAO }
+            }
+        });
+        if (pedidoEmCurso) {
+            return res.status(409).json({
+                success: false,
+                message: 'Já existe uma candidatura em curso para este badge.',
+                idPedido: pedidoEmCurso.ID_PEDIDO
+            });
+        }
 
         // Sem evidências não existe uma candidatura efetivamente iniciada.
         // Remove apenas rascunhos normais; pedidos devolvidos mantêm o histórico.

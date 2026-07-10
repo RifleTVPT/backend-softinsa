@@ -24,32 +24,56 @@ const { getApiOrigin } = require('../services/cloudFileService');
 
 const controllers = {};
 
+const ESTADOS_PEDIDO_EM_CURSO = ['Pendente', 'Em Análise TM', 'Em Análise SLL', 'Pendente de Correção'];
+
 const limparPedidosAtivosDuplicados = async () => {
-    const estados = `'Rascunho', 'Pendente', 'Em Análise TM'`;
+    const estados = `'Rascunho', 'Pendente', 'Em Análise TM', 'Em Análise SLL', 'Pendente de Correção'`;
     await sequelize.query(`
-        DELETE FROM "EVIDENCIA"
+        UPDATE "PEDIDO"
+        SET "ESTADO_PEDIDO" = 'Eliminado',
+            "DATA_ULTIMA_ATUALIZACAO" = NOW()
         WHERE "ID_PEDIDO" IN (
-            SELECT p."ID_PEDIDO"
-            FROM "PEDIDO" p
-            WHERE p."ESTADO_PEDIDO" IN (${estados})
-              AND p."ID_PEDIDO" NOT IN (
-                  SELECT MAX("ID_PEDIDO")
-                  FROM "PEDIDO"
-                  WHERE "ESTADO_PEDIDO" IN (${estados})
-                  GROUP BY "ID_UTILIZADOR", "ID_BADGE"
-              )
-        )
-    `);
-    await sequelize.query(`
-        DELETE FROM "PEDIDO"
-        WHERE "ESTADO_PEDIDO" IN (${estados})
-          AND "ID_PEDIDO" NOT IN (
-              SELECT MAX("ID_PEDIDO")
-              FROM "PEDIDO"
-              WHERE "ESTADO_PEDIDO" IN (${estados})
-              GROUP BY "ID_UTILIZADOR", "ID_BADGE"
+            SELECT "ID_PEDIDO"
+            FROM (
+                SELECT
+                    "ID_PEDIDO",
+                    ROW_NUMBER() OVER (
+                        PARTITION BY "ID_UTILIZADOR", "ID_BADGE"
+                        ORDER BY
+                            CASE "ESTADO_PEDIDO"
+                                WHEN 'Em Análise SLL' THEN 5
+                                WHEN 'Em Análise TM' THEN 4
+                                WHEN 'Pendente' THEN 4
+                                WHEN 'Pendente de Correção' THEN 3
+                                WHEN 'Rascunho' THEN 2
+                                ELSE 1
+                            END DESC,
+                            "ID_PEDIDO" DESC
+                    ) AS rn
+                FROM "PEDIDO"
+                WHERE "ESTADO_PEDIDO" IN (${estados})
+            ) duplicados
+            WHERE rn > 1
           )
     `);
+};
+
+const fecharPedidosConcorrentesDoBadge = async ({ idPedidoAceite, idUtilizador, idBadge, transaction = null }) => {
+    await Pedido.update(
+        {
+            ESTADO_PEDIDO: 'Eliminado',
+            DATA_ULTIMA_ATUALIZACAO: new Date()
+        },
+        {
+            where: {
+                ID_PEDIDO: { [Op.ne]: idPedidoAceite },
+                ID_UTILIZADOR: idUtilizador,
+                ID_BADGE: idBadge,
+                ESTADO_PEDIDO: { [Op.in]: ESTADOS_PEDIDO_EM_CURSO }
+            },
+            transaction
+        }
+    );
 };
 
 const normalizarStatusAdmin = (estado) => {
@@ -356,7 +380,8 @@ controllers.getHistoricoConsultor = async (req, res) => {
                 'Análise SLL': 'info',
                 'Pendente Correção': 'primary',
                 'Aceite': 'success',
-                'Recusado': 'danger'
+                'Recusado': 'danger',
+                'Eliminado': 'dark'
             };
 
             return {
@@ -849,6 +874,12 @@ controllers.tomarDecisaoSLL = async (req, res) => {
         await pedido.update({ ESTADO_PEDIDO: novoEstado, DATA_ULTIMA_ATUALIZACAO: new Date(), ID_SLL: sllId || null });
 
         if (novoEstado === 'Aceite') {
+            await fecharPedidosConcorrentesDoBadge({
+                idPedidoAceite: pedido.ID_PEDIDO,
+                idUtilizador: pedido.ID_UTILIZADOR,
+                idBadge: pedido.ID_BADGE
+            });
+
             const Consultor = require('../models/Consultor');
             const ConsultorBadge = require('../models/ConsultorBadge');
             const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: pedido.ID_UTILIZADOR } });
