@@ -10,12 +10,17 @@ const config = require('../config');
 const mailer = require('../config/mailer');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
 const { uploadMulterFile } = require('../services/cloudFileService');
+const { Op } = require('sequelize');
 
 const controllers = {};
+const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
 
 controllers.register = async (req, res) => {
     try {
         const { nome, email, password, perfil, motivacao, slRegisto, areaRegisto } = req.body;
+        if (!passwordForte(password)) {
+            return res.status(400).json({ success: false, message: "A password deve ter 8+ caracteres, uma maiúscula, uma minúscula, um número e um caractere especial." });
+        }
         const emailExiste = await Utilizador.findOne({ where: { EMAIL_UTILIZADOR: email } });
         if (emailExiste) {
             return res.status(400).json({ success: false, message: 'Este email já se encontra registado.' });
@@ -33,7 +38,6 @@ controllers.register = async (req, res) => {
 
         // Procurar todos os administradores para os notificar
         try {
-            const { Op } = require('sequelize');
             const admins = await Utilizador.findAll({
                 where: {
                     PERFIL_UTILIZADOR: {
@@ -192,15 +196,34 @@ controllers.updateConfiguracoes = async (req, res) => {
         const { idUtilizador } = req.params;
         const { nome, email, idioma, receberAprovacoes, receberExpiracao, partilharLinkedIn, termosRgpd } = req.body;
 
-        const camposAtualizar = { NOME_COMPLETO_UTILIZADOR: nome };
-        if (email) {
-            camposAtualizar.EMAIL_UTILIZADOR = email;
+        const user = await Utilizador.findByPk(idUtilizador);
+        if (!user) return res.status(404).json({ success: false, message: "Utilizador não encontrado." });
+
+        const camposAtualizar = {};
+        if (nome !== undefined) camposAtualizar.NOME_COMPLETO_UTILIZADOR = nome;
+        if (email !== undefined) {
+            const emailLimpo = String(email).trim().toLowerCase();
+            if (!emailLimpo) {
+                return res.status(400).json({ success: false, message: "O email não pode ficar vazio." });
+            }
+            const emailEmUso = await Utilizador.findOne({
+                where: {
+                    EMAIL_UTILIZADOR: emailLimpo,
+                    ID_UTILIZADOR: { [Op.ne]: idUtilizador }
+                }
+            });
+            if (emailEmUso) {
+                return res.status(400).json({ success: false, message: "Este email já se encontra registado." });
+            }
+            camposAtualizar.EMAIL_UTILIZADOR = emailLimpo;
         }
 
-        await Utilizador.update(
-            camposAtualizar,
-            { where: { ID_UTILIZADOR: idUtilizador } }
-        );
+        if (Object.keys(camposAtualizar).length > 0) {
+            await Utilizador.update(
+                camposAtualizar,
+                { where: { ID_UTILIZADOR: idUtilizador } }
+            );
+        }
 
         const preferenciasAtualizar = {};
         if (idioma !== undefined) preferenciasAtualizar.IDIOMA_APP = idioma;
@@ -210,13 +233,29 @@ controllers.updateConfiguracoes = async (req, res) => {
         if (termosRgpd !== undefined) preferenciasAtualizar.TERMOS_RGPD = termosRgpd;
 
         if (Object.keys(preferenciasAtualizar).length > 0) {
-            await PreferenciasUtilizador.update(
-                preferenciasAtualizar,
-                { where: { ID_UTILIZADOR: idUtilizador } }
-            );
+            const [pref] = await PreferenciasUtilizador.findOrCreate({
+                where: { ID_UTILIZADOR: idUtilizador },
+                defaults: {
+                    IDIOMA_APP: 'Português',
+                    RECEBER_EMAIL_PEDIDOS: true,
+                    RECEBER_PUSH_EXPIRACAO: true,
+                    EXIBIR_LINK_PUBLICO: true,
+                    TERMOS_RGPD: false
+                }
+            });
+            await pref.update(preferenciasAtualizar);
         }
 
-        res.json({ success: true, message: "Configurações guardadas com sucesso!" });
+        const atualizado = await Utilizador.findByPk(idUtilizador);
+        res.json({
+            success: true,
+            message: "Configurações guardadas com sucesso!",
+            data: {
+                nome: atualizado.NOME_COMPLETO_UTILIZADOR,
+                email: atualizado.EMAIL_UTILIZADOR,
+                avatar: atualizado.URL_FOTO
+            }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -229,6 +268,9 @@ controllers.mudarPassword = async (req, res) => {
 
         const user = await Utilizador.findByPk(idUtilizador);
         if (!user) return res.status(404).json({ success: false, message: "Utilizador não encontrado." });
+        if (!passwordForte(novaPassword)) {
+            return res.status(400).json({ success: false, message: "A password deve ter 8+ caracteres, uma maiúscula, uma minúscula, um número e um caractere especial." });
+        }
 
         if (user.IS_PRIMEIRO_ACESSO && passwordAtual === 'PRIMEIRO_ACESSO_OVERRIDE') {
             // Bypass para o primeiro acesso onde o user não tem a password atual guardada no frontend
@@ -269,7 +311,7 @@ controllers.uploadAvatar = async (req, res) => {
             { where: { ID_UTILIZADOR: idUtilizador } }
         );
 
-        res.json({ success: true, message: "Foto atualizada!", avatarUrl: fileUrl });
+        res.json({ success: true, message: "Foto atualizada!", avatarUrl: fileUrl, data: { avatar: fileUrl } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

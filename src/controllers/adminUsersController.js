@@ -16,6 +16,7 @@ const MarcoConsultor = require('../models/MarcoConsultor');
 const { Op } = require('sequelize');
 
 const controllers = {};
+const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
 
 // 1. Listar todos os utilizadores
 controllers.getTodosUtilizadores = async (req, res) => {
@@ -176,7 +177,7 @@ controllers.getPerfilUtilizador = async (req, res) => {
 controllers.atualizarUtilizador = async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, email, perfis, sl, area } = req.body;
+        const { nome, email, perfis, sl, area, novaPassword } = req.body;
 
         const u = await Utilizador.findByPk(id);
         if (!u) return res.status(404).json({ success: false, message: "Utilizador não encontrado." });
@@ -188,15 +189,23 @@ controllers.atualizarUtilizador = async (req, res) => {
         const permissoesAlteradas = u.PERFIL_UTILIZADOR !== perfisString;
         const oldPerfis = u.PERFIL_UTILIZADOR || '';
 
-        await Utilizador.update(
-            { 
+        const camposAtualizar = {
                 NOME_COMPLETO_UTILIZADOR: nome, 
                 EMAIL_UTILIZADOR: email,
                 PERFIL_UTILIZADOR: perfisString,
                 SL_REGISTO: sl !== undefined ? sl : u.SL_REGISTO,
                 AREA_REGISTO: area !== undefined ? area : u.AREA_REGISTO
-            },
-            { where: { ID_UTILIZADOR: id } }
+        };
+        if (novaPassword) {
+            if (!passwordForte(novaPassword)) {
+                return res.status(400).json({ success: false, message: 'A password deve ter 8+ caracteres, uma maiúscula, uma minúscula, um número e um caractere especial.' });
+            }
+            camposAtualizar.PASSWORD_UTILIZADOR = novaPassword;
+        }
+
+        await Utilizador.update(
+            camposAtualizar,
+            { where: { ID_UTILIZADOR: id }, individualHooks: Boolean(novaPassword) }
         );
 
         if (permissoesAlteradas) {
