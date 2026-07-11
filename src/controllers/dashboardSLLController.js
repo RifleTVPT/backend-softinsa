@@ -98,19 +98,21 @@ controllers.getDashboardSLLData = async (req, res) => {
         // 3. Top Consultores e Cálculo de Pontos Exclusivo da SL
         let totalPontosSL = 0;
         let badgesTotaisSL = 0;
+        let numConsultoresComBadge = 0;
         const rankingMap = {};
         
         statsSL.forEach(stat => {
             totalPontosSL += stat.pontosCalculados;
             badgesTotaisSL += stat.badgesCalculados;
-            if(stat.badgesCalculados > 0) {
-                rankingMap[stat.consultor.ID_CONSULTOR] = {
-                    id: stat.consultor.ID_CONSULTOR,
-                    nome: stat.consultor.Utilizador?.NOME_COMPLETO_UTILIZADOR || 'Anónimo',
-                    badges: stat.badgesCalculados,
-                    pontos: stat.pontosCalculados
-                };
+            if (stat.badgesCalculados > 0) {
+                numConsultoresComBadge++;
             }
+            rankingMap[stat.consultor.ID_CONSULTOR] = {
+                id: stat.consultor.ID_CONSULTOR,
+                nome: stat.consultor.Utilizador?.NOME_COMPLETO_UTILIZADOR || 'Anónimo',
+                badges: stat.badgesCalculados,
+                pontos: stat.pontosCalculados
+            };
         });
 
         // Extrai e ordena o Top 5
@@ -148,10 +150,9 @@ controllers.getDashboardSLLData = async (req, res) => {
             doughnutValues.push(1);
         }
 
-        const numConsultoresAtivos = Object.keys(rankingMap).length;
         const totalConsultoresSL = statsSL.length;
-        const percComBadge = totalConsultoresSL > 0 ? Math.round((numConsultoresAtivos / totalConsultoresSL) * 100) : 0;
-        const mediaPontos = numConsultoresAtivos > 0 ? Math.round(totalPontosSL / numConsultoresAtivos) : 0;
+        const percComBadge = totalConsultoresSL > 0 ? Math.round((numConsultoresComBadge / totalConsultoresSL) * 100) : 0;
+        const mediaPontos = totalConsultoresSL > 0 ? Math.round(totalPontosSL / totalConsultoresSL) : 0;
 
         // Calculo da Taxa de Crescimento dos Badges
         const badgesMesPassado = dadosLinha[4] || 0;
@@ -279,7 +280,7 @@ controllers.getDashboardSLLData = async (req, res) => {
                 stats: {
                     badgesMes: dadosLinha[5],
                     crescimentoBadges: crescimentoBadges,
-                    consultoresAtivos: numConsultoresAtivos,
+                    consultoresAtivos: numConsultoresComBadge,
                     totalPontos: totalPontosSL,
                     mediaPontos: mediaPontos,
                     percComBadge: percComBadge,

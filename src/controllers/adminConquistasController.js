@@ -4,10 +4,107 @@ const MarcoConsultor = require('../models/MarcoConsultor');
 const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
 const pushService = require('../services/pushService');
+const mailer = require('../config/mailer');
+const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { Op } = require('sequelize');
 const { uploadMulterFile } = require('../services/cloudFileService');
 
 const controllers = {};
+
+const dataCriacaoMarco = marco => marco.DATA_CRIACAO_MARCO ? new Date(marco.DATA_CRIACAO_MARCO) : new Date(0);
+const addMeses = (data, meses) => {
+    const d = new Date(data);
+    d.setMonth(d.getMonth() + Number(meses || 0));
+    return d;
+};
+
+const janelaRanking = marco => {
+    if (marco.TIPO_MARCO === 'MELHOR_ANO') {
+        const ano = Number(marco.PARAMETRO_1);
+        return { inicio: new Date(ano, 0, 1), fim: new Date(ano + 1, 0, 1) };
+    }
+    if (marco.TIPO_MARCO === 'MELHOR_MESES') {
+        const inicio = dataCriacaoMarco(marco);
+        return { inicio, fim: addMeses(inicio, marco.PARAMETRO_1 || 1) };
+    }
+    return null;
+};
+
+const pontosPeriodo = async (idUtilizador, inicio, fim) => {
+    const linhas = await HistoricoPontuacao.findAll({
+        where: {
+            ID_UTILIZADOR: idUtilizador,
+            DATA_ATRIBUICAO: { [Op.gte]: inicio, [Op.lt]: fim },
+            ORIGEM_PONTOS: { [Op.notLike]: 'Badge premium:%' }
+        }
+    });
+    return linhas.reduce((total, linha) => total + (Number(linha.PONTOS_OBTIDOS) || 0), 0);
+};
+
+const atribuirMarco = async (marco, consultor) => {
+    const existente = await MarcoConsultor.findOne({
+        where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_MARCO: marco.ID_MARCO }
+    });
+    if (existente) return false;
+
+    await MarcoConsultor.create({
+        ID_CONSULTOR: consultor.ID_CONSULTOR,
+        ID_MARCO: marco.ID_MARCO,
+        DATA_CONQUISTA: new Date()
+    });
+    await consultor.update({
+        PONTUACAO_TOTAL: (Number(consultor.PONTUACAO_TOTAL) || 0) + (Number(marco.PONTOS_EXTRA) || 0)
+    });
+    await HistoricoPontuacao.create({
+        ID_UTILIZADOR: consultor.ID_UTILIZADOR,
+        DATA_ATRIBUICAO: new Date(),
+        PONTOS_OBTIDOS: marco.PONTOS_EXTRA || 0,
+        ORIGEM_PONTOS: `Badge premium: ${marco.TITULO_MARCO}`
+    });
+    await LogAtividadeSistema.create({
+        ID_UTILIZADOR: consultor.ID_UTILIZADOR,
+        TIPO_ATIVIDADE: 'Badge Premium Obtido',
+        DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${marco.TITULO_MARCO}`,
+        DATA_HORA_ATIVIDADE: new Date()
+    });
+
+    const utilizador = await Utilizador.findByPk(consultor.ID_UTILIZADOR);
+    if (utilizador) {
+        pushService.sendPush(utilizador.ID_UTILIZADOR, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${marco.TITULO_MARCO}".`, 'badges', utilizador.PERFIL_UTILIZADOR);
+        try {
+            await mailer.sendEmail(
+                utilizador.EMAIL_UTILIZADOR,
+                'Novo Badge Premium Obtido - Plataforma de Badges Softinsa',
+                `<h2>Novo Badge Premium Obtido</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>Parabéns! Ganhou automaticamente o badge premium <b>${marco.TITULO_MARCO}</b>.</p><p>Foram adicionados ${marco.PONTOS_EXTRA || 0} pontos à sua conta.</p>`,
+                'badges',
+                utilizador.PERFIL_UTILIZADOR
+            );
+        } catch (mailErr) {
+            console.error('Falha ao enviar email de badge premium obtido:', mailErr);
+        }
+    }
+    return true;
+};
+
+const processarMarcoRanking = async (marco) => {
+    const janela = janelaRanking(marco);
+    if (!janela || new Date() < janela.fim) return false;
+    const jaAtribuido = await MarcoConsultor.findOne({ where: { ID_MARCO: marco.ID_MARCO } });
+    if (jaAtribuido) return false;
+
+    const consultores = await Consultor.findAll();
+    let vencedor = null;
+    let maiorPontuacao = -1;
+    for (const consultor of consultores) {
+        const pontos = await pontosPeriodo(consultor.ID_UTILIZADOR, janela.inicio, janela.fim);
+        if (pontos > maiorPontuacao || (pontos === maiorPontuacao && vencedor && consultor.ID_CONSULTOR < vencedor.ID_CONSULTOR)) {
+            vencedor = consultor;
+            maiorPontuacao = pontos;
+        }
+    }
+    if (!vencedor || maiorPontuacao <= 0) return false;
+    return atribuirMarco(marco, vencedor);
+};
 
 // Helper to generate human-readable "como obter" text
 const gerarTextoComoObter = (tipo, param1, param2) => {
@@ -71,6 +168,10 @@ controllers.getDetalhesConquista = async (req, res) => {
 controllers.criarConquista = async (req, res) => {
     try {
         const { titulo, desc, bonus, tipo, param1, param2 } = req.body;
+        const anoAtual = new Date().getFullYear();
+        if (tipo === 'MELHOR_ANO' && parseInt(param1, 10) < anoAtual) {
+            return res.status(400).json({ success: false, message: `O ano alvo não pode ser anterior a ${anoAtual}.` });
+        }
         
         let imagemUrl = null;
         if (req.file) {
@@ -92,7 +193,8 @@ controllers.criarConquista = async (req, res) => {
             URL_IMAGEM_MARCO: imagemUrl || '/uploads/default-trophy.png',
             TIPO_MARCO: tipo,
             PARAMETRO_1: param1 ? parseInt(param1) : null,
-            PARAMETRO_2: param2 ? parseInt(param2) : null
+            PARAMETRO_2: param2 ? parseInt(param2) : null,
+            DATA_CRIACAO_MARCO: new Date()
         });
 
         const utilizadores = await Utilizador.findAll({ where: { ESTADO_CONTA_UTILIZADOR: 'Ativo' } });
@@ -143,34 +245,11 @@ controllers.processarRankings = async (req, res) => {
             return res.json({ success: true, message: 'Nenhuma regra de Ranking encontrada para processar.' });
         }
 
-        const consultoresTop = await Consultor.findAll({
-            order: [['PONTUACAO_TOTAL', 'DESC']],
-            limit: 1
-        });
-
-        if (consultoresTop.length === 0) {
-            return res.json({ success: false, message: 'Nenhum consultor encontrado.' });
-        }
-
-        const melhorConsultor = consultoresTop[0];
         let premiados = 0;
 
         for (const marco of conquistasRanking) {
-            const existente = await MarcoConsultor.findOne({
-                where: { ID_CONSULTOR: melhorConsultor.ID_CONSULTOR, ID_MARCO: marco.ID_MARCO }
-            });
-
-            if (!existente) {
-                await MarcoConsultor.create({
-                    ID_CONSULTOR: melhorConsultor.ID_CONSULTOR,
-                    ID_MARCO: marco.ID_MARCO,
-                    DATA_CONQUISTA: new Date()
-                });
-                await melhorConsultor.update({
-                    PONTUACAO_TOTAL: (melhorConsultor.PONTUACAO_TOTAL || 0) + marco.PONTOS_EXTRA
-                });
-                premiados++;
-            }
+            const atribuido = await processarMarcoRanking(marco);
+            if (atribuido) premiados++;
         }
 
         res.json({ success: true, message: `Rankings processados com sucesso. ${premiados} novas conquistas atribuídas.` });

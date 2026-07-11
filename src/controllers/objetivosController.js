@@ -1,4 +1,5 @@
 const ObjetivoTimeline = require('../models/ObjetivoTimeline');
+const Utilizador = require('../models/Utilizador');
 
 const controllers = {};
 
@@ -56,6 +57,8 @@ controllers.criarObjetivo = async (req, res) => {
 
         if (enviarNotificacao) {
             const pushService = require('../services/pushService');
+            const mailer = require('../config/mailer');
+            const utilizador = await Utilizador.findByPk(idUtilizador);
             pushService.sendPush(
                 idUtilizador, 
                 'info', 
@@ -64,6 +67,19 @@ controllers.criarObjetivo = async (req, res) => {
                 'objetivos',
                 'Consultor'
             );
+            if (utilizador) {
+                try {
+                    await mailer.sendEmail(
+                        utilizador.EMAIL_UTILIZADOR,
+                        'Novo Objetivo - Plataforma de Badges Softinsa',
+                        `<h2>Novo Objetivo</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>Foi atribuído um novo objetivo por ${origem || 'Talent Manager'}.</p><p><b>${titulo}</b></p><p>Data limite: ${new Date(dataMeta).toLocaleDateString('pt-PT')}</p>${descricao ? `<p>${descricao}</p>` : ''}`,
+                        'objetivos',
+                        utilizador.PERFIL_UTILIZADOR
+                    );
+                } catch (mailErr) {
+                    console.error('Falha ao enviar email de novo objetivo:', mailErr);
+                }
+            }
         }
 
         res.json({ success: true, message: "Objetivo adicionado com sucesso!", data: novo });

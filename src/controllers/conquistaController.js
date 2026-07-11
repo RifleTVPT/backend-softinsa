@@ -11,8 +11,121 @@ const path = require('path');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const pushService = require('../services/pushService');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
+const mailer = require('../config/mailer');
 const http = require('http');
 const https = require('https');
+
+const dataCriacaoMarco = marco => marco.DATA_CRIACAO_MARCO ? new Date(marco.DATA_CRIACAO_MARCO) : new Date(0);
+const addDias = (data, dias) => {
+    const d = new Date(data);
+    d.setDate(d.getDate() + Number(dias || 0));
+    return d;
+};
+const addMeses = (data, meses) => {
+    const d = new Date(data);
+    d.setMonth(d.getMonth() + Number(meses || 0));
+    return d;
+};
+const janelaMarco = marco => {
+    if (marco.TIPO_MARCO === 'BADGES_DIAS') {
+        const inicio = dataCriacaoMarco(marco);
+        return { inicio, fim: addDias(inicio, marco.PARAMETRO_2 || 0) };
+    }
+    if (marco.TIPO_MARCO === 'MELHOR_ANO') {
+        const ano = Number(marco.PARAMETRO_1);
+        return { inicio: new Date(ano, 0, 1), fim: new Date(ano + 1, 0, 1) };
+    }
+    if (marco.TIPO_MARCO === 'MELHOR_MESES') {
+        const inicio = dataCriacaoMarco(marco);
+        return { inicio, fim: addMeses(inicio, marco.PARAMETRO_1 || 1) };
+    }
+    return null;
+};
+const janelaTerminou = marco => {
+    const janela = janelaMarco(marco);
+    return janela ? new Date() >= janela.fim : false;
+};
+const diasRestantesMarco = marco => {
+    const janela = janelaMarco(marco);
+    if (!janela) return null;
+    return Math.max(0, Math.ceil((janela.fim - new Date()) / (1000 * 60 * 60 * 24)));
+};
+const prazoLabelMarco = marco => {
+    const dias = diasRestantesMarco(marco);
+    if (dias === null) return null;
+    if (dias === 0) return 'Último dia';
+    return `Faltam ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+};
+
+const pontosPeriodo = async (idUtilizador, inicio, fim) => {
+    const linhas = await HistoricoPontuacao.findAll({
+        where: {
+            ID_UTILIZADOR: idUtilizador,
+            DATA_ATRIBUICAO: { [Op.gte]: inicio, [Op.lt]: fim },
+            ORIGEM_PONTOS: { [Op.notLike]: 'Badge premium:%' }
+        }
+    });
+    return linhas.reduce((total, linha) => total + (Number(linha.PONTOS_OBTIDOS) || 0), 0);
+};
+
+const atribuirMarcoAoConsultor = async (marco, consultor, idUtilizador) => {
+    const existente = await MarcoConsultor.findOne({
+        where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_MARCO: marco.ID_MARCO }
+    });
+    if (existente) return false;
+
+    await MarcoConsultor.create({
+        ID_CONSULTOR: consultor.ID_CONSULTOR,
+        ID_MARCO: marco.ID_MARCO,
+        DATA_CONQUISTA: new Date()
+    });
+    await consultor.update({
+        PONTUACAO_TOTAL: (Number(consultor.PONTUACAO_TOTAL) || 0) + (Number(marco.PONTOS_EXTRA) || 0)
+    });
+    await HistoricoPontuacao.create({
+        ID_UTILIZADOR: idUtilizador,
+        DATA_ATRIBUICAO: new Date(),
+        PONTOS_OBTIDOS: marco.PONTOS_EXTRA || 0,
+        ORIGEM_PONTOS: `Badge premium: ${marco.TITULO_MARCO}`
+    });
+    await LogAtividadeSistema.create({ ID_UTILIZADOR: idUtilizador, TIPO_ATIVIDADE: 'Badge Premium Obtido', DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${marco.TITULO_MARCO}`, DATA_HORA_ATIVIDADE: new Date() });
+    pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${marco.TITULO_MARCO}".`, 'badges', 'Consultor');
+    try {
+        const utilizador = await Utilizador.findByPk(idUtilizador);
+        if (utilizador) {
+            await mailer.sendEmail(
+                utilizador.EMAIL_UTILIZADOR,
+                'Novo Badge Premium Obtido - Plataforma de Badges Softinsa',
+                `<h2>Novo Badge Premium Obtido</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>Parabéns! Ganhou automaticamente o badge premium <b>${marco.TITULO_MARCO}</b>.</p><p>Foram adicionados ${marco.PONTOS_EXTRA || 0} pontos à sua conta.</p>`,
+                'badges',
+                utilizador.PERFIL_UTILIZADOR
+            );
+        }
+    } catch (mailErr) {
+        console.error('Falha ao enviar email de badge premium obtido:', mailErr);
+    }
+    return true;
+};
+
+const processarRankingSeTerminado = async (marco) => {
+    if (!['MELHOR_ANO', 'MELHOR_MESES'].includes(marco.TIPO_MARCO) || !janelaTerminou(marco)) return;
+    const jaAtribuido = await MarcoConsultor.findOne({ where: { ID_MARCO: marco.ID_MARCO } });
+    if (jaAtribuido) return;
+    const janela = janelaMarco(marco);
+    const consultores = await Consultor.findAll();
+    let vencedor = null;
+    let maiorPontuacao = -1;
+    for (const c of consultores) {
+        const pontos = await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, janela.fim);
+        if (pontos > maiorPontuacao || (pontos === maiorPontuacao && vencedor && c.ID_CONSULTOR < vencedor.ID_CONSULTOR)) {
+            vencedor = c;
+            maiorPontuacao = pontos;
+        }
+    }
+    if (vencedor && maiorPontuacao > 0) {
+        await atribuirMarcoAoConsultor(marco, vencedor, vencedor.ID_UTILIZADOR);
+    }
+};
 
 const desenharEstrelaDourada = (doc, centroX, centroY, raioExterno = 30, raioInterno = 13) => {
     const pontos = [];
@@ -72,16 +185,25 @@ controllers.getConquistasConsultor = async (req, res) => {
         let currentPoints = consultor.PONTUACAO_TOTAL || 0;
 
         for (const m of todosMarcos) {
+            await processarRankingSeTerminado(m);
+
             const item = {
                 id: m.ID_MARCO,
                 titulo: m.TITULO_MARCO,
                 descricao: m.DESCRICAO_MARCO,
                 bonus: m.PONTOS_EXTRA,
-                imagem: m.URL_IMAGEM_MARCO
+                imagem: m.URL_IMAGEM_MARCO,
+                tipo: m.TIPO_MARCO,
+                diasRestantes: diasRestantesMarco(m),
+                prazoLabel: prazoLabelMarco(m)
             };
 
-            if (idsGanhos.includes(m.ID_MARCO)) {
-                const infoGanho = ganhos.find(g => g.ID_MARCO == m.ID_MARCO);
+            const infoGanhoAtual = idsGanhos.includes(m.ID_MARCO)
+                ? ganhos.find(g => g.ID_MARCO == m.ID_MARCO)
+                : await MarcoConsultor.findOne({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_MARCO: m.ID_MARCO } });
+
+            if (infoGanhoAtual) {
+                const infoGanho = infoGanhoAtual;
                 item.data = new Date(infoGanho.DATA_CONQUISTA).toLocaleDateString('pt-PT');
                 obtidas.push(item);
             } else {
@@ -95,13 +217,24 @@ controllers.getConquistasConsultor = async (req, res) => {
                     if (totalBadgesCache >= m.PARAMETRO_1) ganhouAgora = true;
                 }
                 else if (m.TIPO_MARCO === 'BADGES_DIAS') {
-                    const diasAlvo = m.PARAMETRO_2;
-                    const dataLimite = new Date();
-                    dataLimite.setDate(dataLimite.getDate() - diasAlvo);
-                    const badgesNoPeriodo = await ConsultorBadge.count({
-                        where: { ID_CONSULTOR: consultor.ID_CONSULTOR, DATA_ATRIBUICAO_BADGE: { [Op.gte]: dataLimite } }
-                    });
-                    if (badgesNoPeriodo >= m.PARAMETRO_1) ganhouAgora = true;
+                    const janela = janelaMarco(m);
+                    if (janela && new Date() < janela.fim) {
+                        const badgesNoPeriodo = await ConsultorBadge.count({
+                            where: {
+                                ID_CONSULTOR: consultor.ID_CONSULTOR,
+                                DATA_ATRIBUICAO_BADGE: { [Op.gte]: janela.inicio, [Op.lt]: janela.fim }
+                            }
+                        });
+                        item.progressoLabel = `${badgesNoPeriodo} / ${m.PARAMETRO_1} Badges`;
+                        if (badgesNoPeriodo >= m.PARAMETRO_1) ganhouAgora = true;
+                    } else {
+                        item.indisponivel = true;
+                        item.progressoLabel = 'Já não é possível obter';
+                    }
+                }
+                else if (['MELHOR_ANO', 'MELHOR_MESES'].includes(m.TIPO_MARCO) && janelaTerminou(m)) {
+                    item.indisponivel = true;
+                    item.progressoLabel = 'Já não é possível obter';
                 }
                 else if (m.TIPO_MARCO === 'TOTAL_PONTOS') {
                     if (currentPoints >= m.PARAMETRO_1) ganhouAgora = true;
@@ -116,22 +249,10 @@ controllers.getConquistasConsultor = async (req, res) => {
                 }
 
                 if (ganhouAgora) {
-                    await MarcoConsultor.create({
-                        ID_CONSULTOR: consultor.ID_CONSULTOR,
-                        ID_MARCO: m.ID_MARCO,
-                        DATA_CONQUISTA: new Date()
-                    });
+                    await atribuirMarcoAoConsultor(m, consultor, idUtilizador);
                     currentPoints += m.PONTOS_EXTRA;
                     requiresUpdate = true;
-                    await HistoricoPontuacao.create({
-                        ID_UTILIZADOR: idUtilizador,
-                        DATA_ATRIBUICAO: new Date(),
-                        PONTOS_OBTIDOS: m.PONTOS_EXTRA || 0,
-                        ORIGEM_PONTOS: `Badge premium: ${m.TITULO_MARCO}`
-                    });
                     item.data = new Date().toLocaleDateString('pt-PT');
-                    await LogAtividadeSistema.create({ ID_UTILIZADOR: idUtilizador, TIPO_ATIVIDADE: 'Badge Premium Obtido', DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${m.TITULO_MARCO}`, DATA_HORA_ATIVIDADE: new Date() });
-                    pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${m.TITULO_MARCO}".`, 'badges', 'Consultor');
                     obtidas.push(item);
                 } else {
                     disponiveis.push(item);
@@ -168,37 +289,58 @@ controllers.getDetalhesConquista = async (req, res) => {
         // ===================================
         let progValor = 0;
         let progTexto = 'Em curso';
+        let indisponivel = false;
 
         if (!conquistaGanha) {
-            if (marco.TIPO_MARCO === 'TOTAL_BADGES') {
+            await processarRankingSeTerminado(marco);
+            const ganhoDepoisProcessamento = await MarcoConsultor.findOne({
+                where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_MARCO: idMarco }
+            });
+            if (ganhoDepoisProcessamento) {
+                progValor = 100;
+                progTexto = 'Conquista obtida';
+            }
+            else if (marco.TIPO_MARCO === 'TOTAL_BADGES') {
                 const totalBadges = await ConsultorBadge.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR }});
                 progValor = Math.min((totalBadges / marco.PARAMETRO_1) * 100, 100);
                 progTexto = `${totalBadges} / ${marco.PARAMETRO_1} Badges`;
             } 
             else if (marco.TIPO_MARCO === 'BADGES_DIAS') {
-                const diasAlvo = marco.PARAMETRO_2;
-                const dataLimite = new Date();
-                dataLimite.setDate(dataLimite.getDate() - diasAlvo);
-                
-                const badgesNoPeriodo = await ConsultorBadge.count({
-                    where: {
-                        ID_CONSULTOR: consultor.ID_CONSULTOR,
-                        DATA_ATRIBUICAO_BADGE: { [Op.gte]: dataLimite }
-                    }
-                });
-                progValor = Math.min((badgesNoPeriodo / marco.PARAMETRO_1) * 100, 100);
-                progTexto = `${badgesNoPeriodo} / ${marco.PARAMETRO_1} Badges nos últimos ${diasAlvo} dias`;
+                const janela = janelaMarco(marco);
+                if (janela && new Date() >= janela.fim) {
+                    progValor = 0;
+                    progTexto = 'Já não é possível obter';
+                    indisponivel = true;
+                } else {
+                    const badgesNoPeriodo = await ConsultorBadge.count({
+                        where: {
+                            ID_CONSULTOR: consultor.ID_CONSULTOR,
+                            DATA_ATRIBUICAO_BADGE: { [Op.gte]: janela.inicio, [Op.lt]: janela.fim }
+                        }
+                    });
+                    progValor = Math.min((badgesNoPeriodo / marco.PARAMETRO_1) * 100, 100);
+                    progTexto = `${badgesNoPeriodo} / ${marco.PARAMETRO_1} Badges até ${janela.fim.toLocaleDateString('pt-PT')}`;
+                }
             }
             else if (marco.TIPO_MARCO === 'MELHOR_ANO' || marco.TIPO_MARCO === 'MELHOR_MESES') {
-                const totalConsultores = await Consultor.count();
-                const p = consultor.PONTUACAO_TOTAL || 0;
-                const consultoresAbaixo = await Consultor.count({
-                    where: { PONTUACAO_TOTAL: { [Op.lt]: p } }
-                });
-                
-                progValor = totalConsultores > 1 ? (consultoresAbaixo / (totalConsultores - 1)) * 100 : 100;
-                // Exemplo: se tem 10 consultores e 9 estão abaixo, progValor = 100%. (Top 1)
-                progTexto = `À frente de ${Math.round(progValor)}% dos consultores`;
+                const janela = janelaMarco(marco);
+                if (janela && new Date() >= janela.fim) {
+                    progValor = 0;
+                    progTexto = 'Já não é possível obter';
+                    indisponivel = true;
+                } else {
+                    const totalConsultores = await Consultor.count();
+                    const pontosAtual = janela ? await pontosPeriodo(idUtilizador, janela.inicio, new Date()) : (consultor.PONTUACAO_TOTAL || 0);
+                    const todosConsultores = await Consultor.findAll();
+                    let abaixo = 0;
+                    for (const c of todosConsultores) {
+                        if (c.ID_CONSULTOR === consultor.ID_CONSULTOR) continue;
+                        const pontosOutro = janela ? await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, new Date()) : (c.PONTUACAO_TOTAL || 0);
+                        if (pontosOutro < pontosAtual) abaixo++;
+                    }
+                    progValor = totalConsultores > 1 ? (abaixo / (totalConsultores - 1)) * 100 : 100;
+                    progTexto = `À frente de ${Math.round(progValor)}% dos consultores`;
+                }
             }
             else if (marco.TIPO_MARCO === 'TOTAL_PONTOS') {
                 progValor = Math.min(( (consultor.PONTUACAO_TOTAL || 0) / marco.PARAMETRO_1) * 100, 100);
@@ -246,6 +388,10 @@ controllers.getDetalhesConquista = async (req, res) => {
                 img: marco.URL_IMAGEM_MARCO,
                 obtida: !!conquistaGanha,
                 data: conquistaGanha ? new Date(conquistaGanha.DATA_CONQUISTA).toLocaleDateString('pt-PT') : null,
+                tipo: marco.TIPO_MARCO,
+                diasRestantes: diasRestantesMarco(marco),
+                prazoLabel: prazoLabelMarco(marco),
+                indisponivel,
                 progressoValor: Math.round(progValor),
                 progressoLabel: progTexto
             }

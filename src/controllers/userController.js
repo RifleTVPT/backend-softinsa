@@ -10,10 +10,39 @@ const config = require('../config');
 const mailer = require('../config/mailer');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
 const { uploadMulterFile } = require('../services/cloudFileService');
+const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const { Op } = require('sequelize');
 
 const controllers = {};
 const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
+
+const enviarAvisoConta = async (user, titulo, mensagemHtml, mensagemPush = null) => {
+    try {
+        await mailer.sendEmail(user.EMAIL_UTILIZADOR, titulo, mensagemHtml, 'contas', user.PERFIL_UTILIZADOR);
+    } catch (mailErr) {
+        console.error(`Aviso: falha ao enviar email "${titulo}".`, mailErr);
+    }
+    if (mensagemPush) {
+        try {
+            await pushService.sendPush(user.ID_UTILIZADOR, 'system', titulo, mensagemPush, 'contas', user.PERFIL_UTILIZADOR);
+        } catch (pushErr) {
+            console.error(`Aviso: falha ao enviar notificação "${titulo}".`, pushErr);
+        }
+    }
+};
+
+const registarLogConta = async (idUtilizador, tipo, detalhes) => {
+    try {
+        await LogAtividadeSistema.create({
+            ID_UTILIZADOR: idUtilizador,
+            TIPO_ATIVIDADE: tipo,
+            DETALHES_ATIVIDADE: detalhes,
+            DATA_HORA_ATIVIDADE: new Date()
+        });
+    } catch (logErr) {
+        console.error(`Aviso: falha ao registar log "${tipo}".`, logErr);
+    }
+};
 
 controllers.register = async (req, res) => {
     try {
@@ -47,6 +76,17 @@ controllers.register = async (req, res) => {
             });
             for (const admin of admins) {
                 pushService.sendPush(admin.ID_UTILIZADOR, 'system', 'Novo Registo Pendente', `O utilizador ${nome} registou-se como ${perfil} e aguarda aprovação.`, 'contas', admin.PERFIL_UTILIZADOR);
+                try {
+                    await mailer.sendEmail(
+                        admin.EMAIL_UTILIZADOR,
+                        'Novo Registo Pendente - Plataforma de Badges Softinsa',
+                        `<h2>Novo registo pendente</h2><p>O utilizador <b>${nome}</b> registou-se como <b>${perfil}</b> e aguarda aprovação.</p><p>Aceda à área de Administração para validar ou recusar o pedido.</p>`,
+                        'contas',
+                        admin.PERFIL_UTILIZADOR
+                    );
+                } catch (mailErr) {
+                    console.error("Aviso: Falha ao enviar email para admin no registo.", mailErr);
+                }
             }
         } catch (notifErr) {
             console.error("Aviso: Falha ao gerar notificações para admins no registo.", notifErr);
@@ -247,6 +287,27 @@ controllers.updateConfiguracoes = async (req, res) => {
         }
 
         const atualizado = await Utilizador.findByPk(idUtilizador);
+
+        if (camposAtualizar.NOME_COMPLETO_UTILIZADOR && camposAtualizar.NOME_COMPLETO_UTILIZADOR !== user.NOME_COMPLETO_UTILIZADOR) {
+            await enviarAvisoConta(
+                atualizado,
+                'Nome de Conta Atualizado',
+                `<h1>Olá, ${atualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>O nome associado à sua conta foi atualizado com sucesso.</p><p>Se não reconhece esta alteração, contacte a administração da plataforma.</p>`,
+                'O nome associado à sua conta foi atualizado com sucesso.'
+            );
+            await registarLogConta(atualizado.ID_UTILIZADOR, 'Alteração de Nome', `Alterou o nome da conta para ${atualizado.NOME_COMPLETO_UTILIZADOR}`);
+        }
+
+        if (camposAtualizar.EMAIL_UTILIZADOR && camposAtualizar.EMAIL_UTILIZADOR !== user.EMAIL_UTILIZADOR) {
+            await enviarAvisoConta(
+                atualizado,
+                'Email de Conta Atualizado',
+                `<h1>Olá, ${atualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>O email associado à sua conta foi atualizado para <b>${atualizado.EMAIL_UTILIZADOR}</b>.</p><p>Use este endereço no próximo início de sessão.</p>`,
+                `O email associado à sua conta foi atualizado para ${atualizado.EMAIL_UTILIZADOR}.`
+            );
+            await registarLogConta(atualizado.ID_UTILIZADOR, 'Alteração de Email', `Alterou o email da conta de ${user.EMAIL_UTILIZADOR} para ${atualizado.EMAIL_UTILIZADOR}`);
+        }
+
         res.json({
             success: true,
             message: "Configurações guardadas com sucesso!",
@@ -284,6 +345,14 @@ controllers.mudarPassword = async (req, res) => {
             { where: { ID_UTILIZADOR: idUtilizador }, individualHooks: true }
         );
 
+        await enviarAvisoConta(
+            user,
+            'Password Alterada',
+            `<h1>Olá, ${user.NOME_COMPLETO_UTILIZADOR}</h1><p>A password da sua conta foi alterada com sucesso.</p><p>Se não reconhece esta alteração, contacte a administração da plataforma.</p>`,
+            'A password da sua conta foi alterada com sucesso.'
+        );
+        await registarLogConta(user.ID_UTILIZADOR, 'Alteração de Password', 'Alterou a password da conta.');
+
         res.json({ success: true, message: "Password alterada com sucesso!" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -311,6 +380,11 @@ controllers.uploadAvatar = async (req, res) => {
             { where: { ID_UTILIZADOR: idUtilizador } }
         );
 
+        const user = await Utilizador.findByPk(idUtilizador);
+        if (user) {
+            await registarLogConta(user.ID_UTILIZADOR, 'Alteração de Foto de Perfil', 'Alterou a foto de perfil da conta.');
+        }
+
         res.json({ success: true, message: "Foto atualizada!", avatarUrl: fileUrl, data: { avatar: fileUrl } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -334,6 +408,7 @@ controllers.recuperarPassword = async (req, res) => {
         const { email, novaPassword, confirmarPassword } = req.body;
         if (!email || !novaPassword || !confirmarPassword) return res.status(400).json({ success: false, message: 'Campos em falta.' });
         if (novaPassword !== confirmarPassword) return res.status(400).json({ success: false, message: 'As passwords não coincidem.' });
+        if (!passwordForte(novaPassword)) return res.status(400).json({ success: false, message: "A password deve ter 8+ caracteres, uma maiúscula, uma minúscula, um número e um caractere especial." });
         
         const util = await Utilizador.findOne({ where: { EMAIL_UTILIZADOR: email } });
         if (!util) return res.status(404).json({ success: false, message: "Email não associado a um utilizador registado." });
@@ -349,6 +424,7 @@ controllers.recuperarPassword = async (req, res) => {
         );
 
         pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Password Recuperada', 'A sua password foi alterada através da recuperação de password.', 'contas', 'Consultor');
+        await registarLogConta(util.ID_UTILIZADOR, 'Recuperação de Password', 'Redefiniu a password através do processo de recuperação.');
 
         res.json({ success: true, message: "Password redefinida com sucesso." });
     } catch (error) {

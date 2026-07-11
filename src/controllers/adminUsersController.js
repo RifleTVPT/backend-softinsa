@@ -18,6 +18,21 @@ const { Op } = require('sequelize');
 const controllers = {};
 const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
 
+const enviarAvisoContaAdmin = async (user, titulo, html, pushMsg = null) => {
+    try {
+        await mailer.sendEmail(user.EMAIL_UTILIZADOR, titulo, html, 'contas', user.PERFIL_UTILIZADOR);
+    } catch (mailErr) {
+        console.error(`Falha ao enviar email "${titulo}".`, mailErr);
+    }
+    if (pushMsg) {
+        try {
+            await pushService.sendPush(user.ID_UTILIZADOR, 'system', titulo, pushMsg, 'contas', user.PERFIL_UTILIZADOR);
+        } catch (pushErr) {
+            console.error(`Falha ao enviar notificação "${titulo}".`, pushErr);
+        }
+    }
+};
+
 // 1. Listar todos os utilizadores
 controllers.getTodosUtilizadores = async (req, res) => {
     try {
@@ -208,6 +223,8 @@ controllers.atualizarUtilizador = async (req, res) => {
             { where: { ID_UTILIZADOR: id }, individualHooks: Boolean(novaPassword) }
         );
 
+        const userAtualizado = await Utilizador.findByPk(id);
+
         if (permissoesAlteradas) {
             const antigos = oldPerfis.split(' / ').filter(Boolean);
             const novos = perfisString.split(' / ').filter(Boolean);
@@ -237,15 +254,65 @@ controllers.atualizarUtilizador = async (req, res) => {
             try {
                 const mailer = require('../config/mailer');
                 mailer.sendEmail(
-                    email,
+                    userAtualizado.EMAIL_UTILIZADOR,
                     'Permissões de Conta Alteradas - Plataforma Softinsa',
-                    `<h1>Olá, ${nome}</h1><p>As suas permissões de perfil foram atualizadas pelo Administrador.</p><p>O seu perfil atual é: <b>${perfisString}</b>.</p><p>Se considerar que se trata de um erro, por favor contacte a administração.</p>`, 'contas', perfisString);
+                    `<h1>Olá, ${userAtualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>As suas permissões de perfil foram atualizadas pelo Administrador.</p><p>O seu perfil atual é: <b>${perfisString}</b>.</p><p>Se considerar que se trata de um erro, por favor contacte a administração.</p>`, 'contas', perfisString);
             } catch (mailErr) {
                 console.error("Falha ao enviar email de alteração de permissões.", mailErr);
             }
+            try {
+                await pushService.sendPush(
+                    userAtualizado.ID_UTILIZADOR,
+                    'system',
+                    'Permissões de Conta Alteradas',
+                    `As suas permissões foram atualizadas. Perfil atual: ${perfisString}.`,
+                    'contas',
+                    perfisString
+                );
+            } catch (pushErr) {
+                console.error("Falha ao enviar notificação de alteração de permissões.", pushErr);
+            }
         }
 
-        await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Atualização de Utilizador', DETALHES_ATIVIDADE: `Atualizou ${nome}; perfis: ${perfisString}`, DATA_HORA_ATIVIDADE: new Date() });
+        if (u.NOME_COMPLETO_UTILIZADOR !== userAtualizado.NOME_COMPLETO_UTILIZADOR) {
+            await enviarAvisoContaAdmin(
+                userAtualizado,
+                'Nome de Conta Atualizado',
+                `<h1>Olá, ${userAtualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>O nome associado à sua conta foi atualizado pelo Administrador.</p>`,
+                'O nome associado à sua conta foi atualizado pelo Administrador.'
+            );
+        }
+        if (u.EMAIL_UTILIZADOR !== userAtualizado.EMAIL_UTILIZADOR) {
+            await enviarAvisoContaAdmin(
+                userAtualizado,
+                'Email de Conta Atualizado',
+                `<h1>Olá, ${userAtualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>O email associado à sua conta foi atualizado para <b>${userAtualizado.EMAIL_UTILIZADOR}</b>.</p><p>Use este endereço no próximo início de sessão.</p>`,
+                `O email associado à sua conta foi atualizado para ${userAtualizado.EMAIL_UTILIZADOR}.`
+            );
+        }
+        if (novaPassword) {
+            await enviarAvisoContaAdmin(
+                userAtualizado,
+                'Password de Conta Atualizada',
+                `<h1>Olá, ${userAtualizado.NOME_COMPLETO_UTILIZADOR}</h1><p>A password da sua conta foi atualizada pelo Administrador.</p><p>Se não reconhece esta alteração, contacte a administração da plataforma.</p>`,
+                'A password da sua conta foi atualizada pelo Administrador.'
+            );
+        }
+
+        const alteracoes = [];
+        if (u.NOME_COMPLETO_UTILIZADOR !== userAtualizado.NOME_COMPLETO_UTILIZADOR) alteracoes.push(`nome: ${u.NOME_COMPLETO_UTILIZADOR} -> ${userAtualizado.NOME_COMPLETO_UTILIZADOR}`);
+        if (u.EMAIL_UTILIZADOR !== userAtualizado.EMAIL_UTILIZADOR) alteracoes.push(`email: ${u.EMAIL_UTILIZADOR} -> ${userAtualizado.EMAIL_UTILIZADOR}`);
+        if (oldPerfis !== perfisString) alteracoes.push(`perfis: ${oldPerfis} -> ${perfisString}`);
+        if (novaPassword) alteracoes.push('password alterada');
+        if ((u.SL_REGISTO || '') !== (userAtualizado.SL_REGISTO || '')) alteracoes.push(`service line: ${u.SL_REGISTO || 'N/A'} -> ${userAtualizado.SL_REGISTO || 'N/A'}`);
+        if ((u.AREA_REGISTO || '') !== (userAtualizado.AREA_REGISTO || '')) alteracoes.push(`área: ${u.AREA_REGISTO || 'N/A'} -> ${userAtualizado.AREA_REGISTO || 'N/A'}`);
+
+        await LogAtividadeSistema.create({
+            ID_UTILIZADOR: req.userId || 1,
+            TIPO_ATIVIDADE: 'Atualização de Utilizador',
+            DETALHES_ATIVIDADE: `Atualizou ${userAtualizado.NOME_COMPLETO_UTILIZADOR}${alteracoes.length ? ` (${alteracoes.join('; ')})` : ''}`,
+            DATA_HORA_ATIVIDADE: new Date()
+        });
         res.json({ success: true, message: "Perfil atualizado!" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

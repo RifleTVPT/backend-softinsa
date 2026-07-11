@@ -265,7 +265,12 @@ controllers.getDetalhesBadgeObtido = async (req, res) => {
                     : formatarValidade(badge.VALIDADE_MESES),
                 pontos: badge.PONTOS_BADGE,
                 descricao: badge.DESCRICAO_BADGE,
-                requisitos: badge.requisitos.map(r => ({ idBd: r.ID_REQUISITO, id: `REQ-${r.ID_REQUISITO}`, desc: r.TITULO_REQUISITO })),
+                requisitos: badge.requisitos.map(r => ({
+                    idBd: r.ID_REQUISITO,
+                    id: `REQ-${r.ID_REQUISITO}`,
+                    titulo: r.TITULO_REQUISITO,
+                    desc: r.DESCRICAO_REQUISITO || r.DESCRICAO || r.TITULO_REQUISITO
+                })),
                 ficheiros: ficheirosEvidencia,
                 nomeConsultor: consultor.Utilizador ? consultor.Utilizador.NOME_COMPLETO_UTILIZADOR : 'Consultor'
             } 

@@ -926,14 +926,20 @@ controllers.tomarDecisaoSLL = async (req, res) => {
                 ? `A candidatura ao badge "${nomeBadge}" foi aceite por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`
                 : `A candidatura ao badge "${nomeBadge}" foi rejeitada por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`;
             if (novoEstado === 'Rascunho') {
-                mensagem = `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador} Para corrigir o pedido, aceda ao Dashboard → Aprendizagens Ativas → Continuar. Reveja ou substitua as evidências indicadas e submeta novamente a candidatura.`;
+                mensagem = [
+                    `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader).`,
+                    `Mensagem: ${mensagemAvaliador}`,
+                    'No web: Dashboard → A Minha Jornada de Carreira → Continuar.',
+                    'No mobile: Dashboard → Aprendizagens Ativas → carregar no rascunho.',
+                    'Reveja ou substitua as evidências indicadas e submeta novamente a candidatura.'
+                ].join('\n\n');
             }
             pushService.sendPush(utilizador.ID_UTILIZADOR, novoEstado === 'Aceite' ? 'success' : 'warning', titulos[novoEstado], mensagem, 'validacao', utilizador.PERFIL_UTILIZADOR);
             try {
                 mailer.sendEmail(
                     utilizador.EMAIL_UTILIZADOR,
                     `${titulos[novoEstado]} - Plataforma de Badges Softinsa`,
-                    `<h2>${titulos[novoEstado]}</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>${mensagem}</p>`,
+                    `<h2>${titulos[novoEstado]}</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>${mensagem.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                     'validacao',
                     'Consultor'
                 );
