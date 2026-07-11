@@ -240,22 +240,25 @@ controllers.receberPedidoMobile = async (req, res) => {
         const evidencias = payload.evidencias || [];
 
         for (const ev of evidencias) {
-            if (!ev.base64) continue;
-
             const nomeSeguro = path.basename(ev.NOME_FICHEIRO || 'evidencia').replace(/[\\/:*?"<>|]/g, '_');
-            const buffer = Buffer.from(ev.base64, 'base64');
-            const uploaded = await uploadEvidenceBuffer(req, buffer, {
-                folder: 'softinsa/evidencias',
-                originalname: nomeSeguro,
-                mimetype: ev.MIME_TYPE || ev.mimeType || inferMimeFromName(nomeSeguro),
-                resourceType: 'auto'
-            });
+            let urlFicheiro = ev.URL_FICHEIRO || null;
+            if (ev.base64) {
+                const buffer = Buffer.from(ev.base64, 'base64');
+                const uploaded = await uploadEvidenceBuffer(req, buffer, {
+                    folder: 'softinsa/evidencias',
+                    originalname: nomeSeguro,
+                    mimetype: ev.MIME_TYPE || ev.mimeType || inferMimeFromName(nomeSeguro),
+                    resourceType: 'auto'
+                });
+                urlFicheiro = uploaded.url;
+            }
+            if (!urlFicheiro) continue;
 
             await Evidencia.create({
                 ID_PEDIDO: novoPedido.ID_PEDIDO,
                 NOME_FICHEIRO: nomeSeguro,
-                URL_FICHEIRO: uploaded.url,
-                ID_REQUISITO: ev.REQUISITO_MAPEADO || null,
+                URL_FICHEIRO: urlFicheiro,
+                ID_REQUISITO: ev.ID_REQUISITO || ev.REQUISITO_MAPEADO || null,
                 REQUISITO_MAPEADO: null
             });
         }

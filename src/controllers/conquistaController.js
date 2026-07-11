@@ -236,8 +236,22 @@ controllers.getConquistasConsultor = async (req, res) => {
                     item.indisponivel = true;
                     item.progressoLabel = 'Já não é possível obter';
                 }
+                else if (['MELHOR_ANO', 'MELHOR_MESES'].includes(m.TIPO_MARCO)) {
+                    const totalConsultores = await Consultor.count();
+                    const consultoresAbaixo = await Consultor.count({
+                        where: {
+                            PONTUACAO_TOTAL: { [Op.lt]: currentPoints }
+                        }
+                    });
+                    const progressoRanking = totalConsultores > 1
+                        ? Math.round((consultoresAbaixo / (totalConsultores - 1)) * 100)
+                        : 100;
+                    item.progressoValor = Math.min(progressoRanking, 100);
+                    item.progressoLabel = `À frente de ${item.progressoValor}% dos consultores`;
+                }
                 else if (m.TIPO_MARCO === 'TOTAL_PONTOS') {
                     if (currentPoints >= m.PARAMETRO_1) ganhouAgora = true;
+                    item.progressoLabel = `${currentPoints} / ${m.PARAMETRO_1} Pontos`;
                 }
                 else if (!m.TIPO_MARCO && m.REGRA_ATRIBUICAO && m.REGRA_ATRIBUICAO.toLowerCase().includes('pontos')) {
                     // Legacy logic for points

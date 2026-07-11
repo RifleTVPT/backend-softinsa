@@ -199,18 +199,12 @@ controllers.getDashboardTMData = async (req, res) => {
             }]
         };
 
-        // 7. Dados dinâmicos para a tabela Top Service Lines (Ultimos 30 dias com Premium)
-        const trintaDiasAtras = new Date();
-        trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-        
-        const badges30Dias = await ConsultorBadge.findAll({
-            where: { DATA_ATRIBUICAO_BADGE: { [Op.gte]: trintaDiasAtras } },
+        // 7. Dados dinâmicos para a tabela Top Service Lines, com badges normais e premium.
+        const badgesAtribuidosStats = await ConsultorBadge.findAll({
             include: [{ model: Badge }]
         });
         
-        const marcos30Dias = await MarcoConsultor.findAll({
-            where: { DATA_CONQUISTA: { [Op.gte]: trintaDiasAtras } }
-        });
+        const marcosAtribuidosStats = await MarcoConsultor.findAll();
         const todosConsultores = await Consultor.findAll({ include: [{ model: Utilizador }] });
         const MarcoConquista = require('../models/MarcoConquista');
         const todosMarcosCatalogo = await MarcoConquista.findAll();
@@ -224,16 +218,15 @@ controllers.getDashboardTMData = async (req, res) => {
             const sl = serviceLine.NOME_SERVICE_LINE;
             mapSLStats[sl] = { sl, total: 0, pontos: 0 };
         });
-        badges30Dias.forEach(cb => {
-            const consultor = todosConsultores.find(c => c.ID_CONSULTOR === cb.ID_CONSULTOR);
-            const sl = consultor?.Utilizador?.SL_REGISTO || getSL(cb.Badge);
+        badgesAtribuidosStats.forEach(cb => {
+            const sl = getSL(cb.Badge);
             const pontos = cb.Badge?.PONTOS_BADGE || 0;
             if(!mapSLStats[sl]) mapSLStats[sl] = { sl: sl, total: 0, pontos: 0 };
             mapSLStats[sl].total++;
             mapSLStats[sl].pontos += pontos;
         });
         
-        marcos30Dias.forEach(mc => {
+        marcosAtribuidosStats.forEach(mc => {
             const marcoDef = todosMarcosCatalogo.find(m => m.ID_MARCO === mc.ID_MARCO);
             const pontos = marcoDef ? marcoDef.PONTOS_EXTRA : 0;
             const consultor = todosConsultores.find(c => c.ID_CONSULTOR === mc.ID_CONSULTOR);
