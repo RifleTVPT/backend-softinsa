@@ -19,6 +19,47 @@ const canalPermitido = (matriz, eventoId, perfilStr, canal) => {
     return perfis.some(perfil => matriz[eventoId]?.[perfil]?.[canal] !== false);
 };
 
+const usarBrevo = () => Boolean(process.env.BREVO_API_KEY);
+
+const remetentePadrao = (config = {}) => {
+    const email = process.env.EMAIL_FROM || config?.SMTP_USER || process.env.SMTP_USER || 'no-reply@softinsa.pt';
+    const name = process.env.EMAIL_FROM_NAME || 'Plataforma de Badges Softinsa';
+    return { email, name };
+};
+
+const enviarPorBrevo = async ({ to, subject, html, config }) => {
+    const sender = remetentePadrao(config);
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+            'accept': 'application/json',
+            'api-key': process.env.BREVO_API_KEY,
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            sender,
+            to: [{ email: to }],
+            subject,
+            htmlContent: html
+        })
+    });
+
+    const text = await response.text();
+    let data = {};
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch (_) {
+        data = { raw: text };
+    }
+
+    if (!response.ok) {
+        const detalhe = data.message || data.code || text || response.statusText;
+        throw new Error(`Brevo API falhou (${response.status}): ${detalhe}`);
+    }
+
+    return data;
+};
+
 
 // Create a reusable transporter object using SMTP transport
 // In development, you can use Ethereal (https://ethereal.email/)
@@ -74,6 +115,15 @@ const createTransporter = async (config) => {
 };
 
 const testSmtp = async (smtpConfig, destinatario) => {
+    if (usarBrevo()) {
+        return await enviarPorBrevo({
+            to: destinatario,
+            subject: 'Teste Brevo - Plataforma de Badges Softinsa',
+            html: '<h2>Configuração Brevo válida</h2><p>Este email confirma que a Plataforma de Badges Softinsa consegue enviar mensagens pela API Brevo.</p>',
+            config: smtpConfig
+        });
+    }
+
     const { host, port, secure, user, pass } = normalizarSmtpConfig(smtpConfig);
     if (!host || !user || !pass) {
         throw new Error('Preencha o servidor SMTP, o utilizador e a password antes de testar.');
@@ -133,6 +183,12 @@ const sendEmail = async (to, subject, html, eventoId = null, perfilStr = null) =
             } catch (error) {
                 console.error('Matriz de notificações inválida:', error);
             }
+        }
+
+        if (usarBrevo()) {
+            const infoBrevo = await enviarPorBrevo({ to, subject, html, config });
+            console.log("Email Brevo enviado: %s", infoBrevo.messageId || JSON.stringify(infoBrevo));
+            return infoBrevo;
         }
 
         const transporter = await getTransporter(config);
