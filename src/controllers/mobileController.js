@@ -168,6 +168,7 @@ controllers.receberPedidoMobile = async (req, res) => {
         const dataSubmissaoMobile = new Date(payload.DATA_SUBMISSAO_PEDIDO);
 
         const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: idUtilizadorLogado } });
+        let isRenovacao = false;
         if (consultor) {
             const badgeJaObtido = await ConsultorBadge.findOne({
                 where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: idBadge }
@@ -178,6 +179,7 @@ controllers.receberPedidoMobile = async (req, res) => {
                     message: 'Este badge já foi obtido. Só pode renovar quando a renovação estiver disponível.'
                 });
             }
+            isRenovacao = Boolean(badgeJaObtido);
         }
 
         // 1. Procurar pedido realmente em validação. Eliminado/Recusado/Rascunho não bloqueiam novo pedido.
@@ -197,25 +199,44 @@ controllers.receberPedidoMobile = async (req, res) => {
             });
         }
 
-        // 2. Apagar Rascunhos se existirem na web
-        await Pedido.destroy({
+        // 2. Reaproveitar rascunho/devolução existente, tal como no web.
+        // Assim o histórico continua no mesmo pedido quando veio de "send back".
+        let novoPedido = await Pedido.findOne({
             where: {
                 ID_UTILIZADOR: idUtilizadorLogado,
                 ID_BADGE: idBadge,
-                ESTADO_PEDIDO: 'Rascunho'
-            }
+                ESTADO_PEDIDO: { [Op.in]: ['Rascunho', 'Pendente de Correção'] }
+            },
+            order: [['DATA_ULTIMA_ATUALIZACAO', 'DESC'], ['ID_PEDIDO', 'DESC']]
         });
 
-        // 3. Criar o novo Pedido
-        const novoPedido = await Pedido.create({
-            ID_UTILIZADOR: idUtilizadorLogado,
-            ID_BADGE: idBadge,
-            DATA_SUBMISSAO_PEDIDO: dataSubmissaoMobile,
-            DATA_ULTIMA_ATUALIZACAO: new Date(),
-            ESTADO_PEDIDO: 'Pendente'
-        });
+        if (novoPedido) {
+            await novoPedido.update({
+                DATA_SUBMISSAO_PEDIDO: dataSubmissaoMobile,
+                DATA_ULTIMA_ATUALIZACAO: new Date(),
+                ESTADO_PEDIDO: 'Pendente'
+            });
+            await Evidencia.destroy({ where: { ID_PEDIDO: novoPedido.ID_PEDIDO } });
 
-        // 4. Processar Evidências (Base64)
+            await Pedido.destroy({
+                where: {
+                    ID_UTILIZADOR: idUtilizadorLogado,
+                    ID_BADGE: idBadge,
+                    ESTADO_PEDIDO: { [Op.in]: ['Rascunho', 'Pendente de Correção'] },
+                    ID_PEDIDO: { [Op.ne]: novoPedido.ID_PEDIDO }
+                }
+            });
+        } else {
+            novoPedido = await Pedido.create({
+                ID_UTILIZADOR: idUtilizadorLogado,
+                ID_BADGE: idBadge,
+                DATA_SUBMISSAO_PEDIDO: dataSubmissaoMobile,
+                DATA_ULTIMA_ATUALIZACAO: new Date(),
+                ESTADO_PEDIDO: 'Pendente'
+            });
+        }
+
+        // 3. Processar Evidências (Base64)
         const evidencias = payload.evidencias || [];
 
         for (const ev of evidencias) {
@@ -253,17 +274,25 @@ controllers.receberPedidoMobile = async (req, res) => {
         const nomeConsultor = utilizador?.NOME_COMPLETO_UTILIZADOR || `Utilizador ${idUtilizadorLogado}`;
         const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
         if (utilizador) {
-            const mensagemConfirmacao = `A sua candidatura ao badge "${nomeBadge}" foi submetida através da app mobile e enviada para análise do Talent Manager.`;
+            const tipoPedido = isRenovacao ? 'renovação' : 'candidatura';
+            const tituloConfirmacao = isRenovacao
+                ? 'Renovação Enviada para o Talent Manager'
+                : 'Candidatura Enviada para o Talent Manager';
+            const mensagemConfirmacao = [
+                `A sua ${tipoPedido} ao badge "${nomeBadge}" foi submetida através da app mobile.`,
+                'Estado: enviada para análise do Talent Manager.',
+                'Pode acompanhar o estado em Pedidos → Histórico de Pedidos.'
+            ].join('\n\n');
             await LogAtividadeSistema.create({
                 ID_UTILIZADOR: utilizador.ID_UTILIZADOR,
                 TIPO_ATIVIDADE: 'Candidatura Mobile',
-                DETALHES_ATIVIDADE: `${utilizador.NOME_COMPLETO_UTILIZADOR} submeteu candidatura ao badge "${nomeBadge}" através da app mobile.`,
+                DETALHES_ATIVIDADE: `${utilizador.NOME_COMPLETO_UTILIZADOR} submeteu ${tipoPedido} ao badge "${nomeBadge}" através da app mobile.`,
                 DATA_HORA_ATIVIDADE: new Date()
             });
             pushService.sendPush(
                 utilizador.ID_UTILIZADOR,
                 'info',
-                'Candidatura Enviada para o Talent Manager',
+                tituloConfirmacao,
                 mensagemConfirmacao,
                 'pedidos',
                 'Consultor'
@@ -271,11 +300,10 @@ controllers.receberPedidoMobile = async (req, res) => {
             try {
                 mailer.sendEmail(
                     utilizador.EMAIL_UTILIZADOR,
-                    'Confirmação de Candidatura - Plataforma de Badges Softinsa',
-                    `<h2>Candidatura submetida com sucesso</h2>
+                    `${isRenovacao ? 'Confirmação de Renovação' : 'Confirmação de Candidatura'} - Plataforma de Badges Softinsa`,
+                    `<h2>${isRenovacao ? 'Renovação submetida com sucesso' : 'Candidatura submetida com sucesso'}</h2>
                      <p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>
-                     <p>${mensagemConfirmacao}</p>
-                     <p>Pode acompanhar o estado em <strong>Pedidos → Histórico de Pedidos</strong>.</p>`,
+                     ${mensagemConfirmacao.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                     'pedidos',
                     'Consultor'
                 );
@@ -284,12 +312,16 @@ controllers.receberPedidoMobile = async (req, res) => {
             }
         }
 
-        const mensagemTalent = `${nomeConsultor} submeteu uma candidatura ao badge "${nomeBadge}" através da app mobile. Aceda a Validações → Pedidos Pendentes para analisar as evidências.`;
+        const tipoPedidoTalent = isRenovacao ? 'renovação' : 'candidatura';
+        const mensagemTalent = [
+            `${nomeConsultor} submeteu uma ${tipoPedidoTalent} ao badge "${nomeBadge}" através da app mobile.`,
+            'Aceda a Validações → Pedidos Pendentes para analisar as evidências.'
+        ].join('\n\n');
         for (const talent of talentManagers) {
             pushService.sendPush(
                 talent.ID_UTILIZADOR,
                 'info',
-                'Nova Candidatura para Validação',
+                isRenovacao ? 'Nova Renovação para Validação' : 'Nova Candidatura para Validação',
                 mensagemTalent,
                 'pedidos',
                 'Talent Manager'
@@ -297,10 +329,10 @@ controllers.receberPedidoMobile = async (req, res) => {
             try {
                 mailer.sendEmail(
                     talent.EMAIL_UTILIZADOR,
-                    'Nova Candidatura para Validação - Plataforma de Badges Softinsa',
-                    `<h2>Nova candidatura recebida</h2>
+                    `${isRenovacao ? 'Nova Renovação' : 'Nova Candidatura'} para Validação - Plataforma de Badges Softinsa`,
+                    `<h2>${isRenovacao ? 'Nova renovação recebida' : 'Nova candidatura recebida'}</h2>
                      <p>Olá, ${talent.NOME_COMPLETO_UTILIZADOR}.</p>
-                     <p>${mensagemTalent}</p>`,
+                     ${mensagemTalent.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                     'pedidos',
                     'Talent Manager'
                 );

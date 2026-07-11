@@ -56,7 +56,11 @@ const startCronJobs = () => {
                     const desejaReceberAviso = prefs ? prefs.RECEBER_PUSH_EXPIRACAO : true;
 
                     const titulo = 'Aviso de Expiração de Competência';
-                    const msg = `O seu badge "${cb.Badge.NOME_BADGE}" irá expirar em ${diasRestantes} dias. Para iniciar a renovação, aceda a Os Meus Badges → Ver Detalhes → Renovar candidatura. Os pontos já conquistados permanecem no seu histórico.`;
+                    const msg = [
+                        `O seu badge "${cb.Badge.NOME_BADGE}" irá expirar em ${diasRestantes} dias.`,
+                        'Para iniciar a renovação, aceda a Os Meus Badges → Ver Detalhes → Renovar candidatura.',
+                        'Os pontos já conquistados permanecem no seu histórico.'
+                    ].join('\n\n');
 
                     if (desejaReceberAviso) {
                         await pushService.sendPush(
@@ -72,7 +76,7 @@ const startCronJobs = () => {
                         await mailer.sendEmail(
                             util.EMAIL_UTILIZADOR,
                             titulo,
-                            `<p>${msg}</p>`,
+                            `<h2>${titulo}</h2>${msg.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                             'expiracao',
                             'Consultor'
                         );
@@ -112,7 +116,10 @@ const startCronJobs = () => {
                     : (diasRestantes === 0
                         ? 'termina hoje'
                         : `termina dentro de ${diasRestantes} ${diasRestantes === 1 ? 'dia' : 'dias'}`);
-                const msg = `O objetivo "${objetivo.TITULO}" ${prazo}. Consulte Objetivos e Timeline para acompanhar ou concluir esta meta.`;
+                const msg = [
+                    `O objetivo "${objetivo.TITULO}" ${prazo}.`,
+                    'Consulte Objetivos e Timeline para acompanhar ou concluir esta meta.'
+                ].join('\n\n');
                 const jaEnviado = await Notificacao.findOne({
                     where: {
                         ID_UTILIZADOR: utilizador.ID_UTILIZADOR,
@@ -135,7 +142,7 @@ const startCronJobs = () => {
                     await mailer.sendEmail(
                         utilizador.EMAIL_UTILIZADOR,
                         titulo,
-                        `<p>${msg}</p>`,
+                        `<h2>${titulo}</h2>${msg.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                         'objetivos',
                         'Consultor'
                     );

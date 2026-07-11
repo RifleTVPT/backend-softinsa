@@ -5,6 +5,7 @@ const Utilizador = require('../models/Utilizador');
 const Notificacao = require('../models/Notificacao');
 const { Op } = require('sequelize');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
+const mailer = require('../config/mailer');
 
 const controllers = {};
 
@@ -91,16 +92,38 @@ controllers.getBadgesExpiracao = async (req, res) => {
 controllers.notificarConsultor = async (req, res) => {
     try {
         const { idUtilizador, badgeNome, diasRestantes } = req.body;
+        const utilizador = await Utilizador.findByPk(idUtilizador);
+        const mensagem = [
+            `O seu badge "${badgeNome}" expira em ${diasRestantes} dias.`,
+            'Inicie o processo de renovação para manter a sua competência ativa.',
+            "Para renovar, aceda a 'Meus Badges', selecione o badge correspondente e clique em 'Renovar'.",
+            'Caso deixe expirar, o badge sairá da sua galeria. Os pontos ganhos mantêm-se associados à sua conta.'
+        ].join('\n\n');
 
         const pushService = require('../services/pushService');
         pushService.sendPush(
             idUtilizador,
             'warning',
             'Aviso Crítico de Expiração',
-            'O seu badge "' + badgeNome + '" expira em ' + diasRestantes + ' dias. Inicie o processo de renovação para manter a sua competência ativa. Para renovar, aceda a \'Meus Badges\', selecione o badge correspondente e clique em \'Renovar\'. Caso deixe expirar, o badge sairá da sua galeria (os pontos ganhos mantêm-se associados à sua conta).',
+            mensagem,
             'expiracao',
             'Consultor'
         );
+        if (utilizador?.EMAIL_UTILIZADOR) {
+            try {
+                await mailer.sendEmail(
+                    utilizador.EMAIL_UTILIZADOR,
+                    'Aviso Crítico de Expiração - Plataforma de Badges Softinsa',
+                    `<h2>Aviso crítico de expiração</h2>
+                     <p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>
+                     ${mensagem.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
+                    'expiracao',
+                    'Consultor'
+                );
+            } catch (mailErr) {
+                console.error('Falha ao enviar email de aviso crítico de expiração:', mailErr);
+            }
+        }
 
         res.json({ success: true, message: 'Notificação enviada com sucesso!' });
     } catch (error) {

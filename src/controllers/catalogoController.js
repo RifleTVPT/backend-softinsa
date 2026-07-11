@@ -310,6 +310,7 @@ controllers.candidatar = async (req, res) => {
         const Consultor = require('../models/Consultor');
         const ConsultorBadge = require('../models/ConsultorBadge');
         const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: idUtilizador } });
+        let isRenovacao = false;
         if (consultor) {
             const badgeJaObtido = await ConsultorBadge.findOne({
                 where: { ID_CONSULTOR: consultor.ID_CONSULTOR, ID_BADGE: idBadge }
@@ -320,6 +321,7 @@ controllers.candidatar = async (req, res) => {
                     message: 'Este badge já foi obtido. Só pode renovar quando a renovação estiver disponível.'
                 });
             }
+            isRenovacao = Boolean(badgeJaObtido);
         }
 
         const pedidoEmCurso = await Pedido.findOne({
@@ -428,11 +430,20 @@ controllers.candidatar = async (req, res) => {
         }
         if (utilizador) {
             const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
-            const mensagemConfirmacao = `A sua candidatura ao badge "${nomeBadge}" foi submetida por ${utilizador.NOME_COMPLETO_UTILIZADOR} e enviada para análise do Talent Manager. Mensagem: Sem mensagem adicional.`;
+            const tipoPedido = isRenovacao ? 'renovação' : 'candidatura';
+            const tituloConfirmacao = isRenovacao
+                ? 'Renovação Enviada para o Talent Manager'
+                : 'Candidatura Enviada para o Talent Manager';
+            const mensagemConfirmacao = [
+                `A sua ${tipoPedido} ao badge "${nomeBadge}" foi submetida por ${utilizador.NOME_COMPLETO_UTILIZADOR}.`,
+                'Estado: enviada para análise do Talent Manager.',
+                'Mensagem: Sem mensagem adicional.',
+                'Pode acompanhar o estado em Pedidos → Histórico de Pedidos.'
+            ].join('\n\n');
             pushService.sendPush(
                 utilizador.ID_UTILIZADOR,
                 'info',
-                'Candidatura Enviada para o Talent Manager',
+                tituloConfirmacao,
                 mensagemConfirmacao,
                 'pedidos',
                 'Consultor'
@@ -440,11 +451,10 @@ controllers.candidatar = async (req, res) => {
             try {
                 mailer.sendEmail(
                     utilizador.EMAIL_UTILIZADOR,
-                    'Confirmação de Candidatura - Plataforma de Badges Softinsa',
-                    `<h2>Candidatura submetida com sucesso</h2>
+                    `${isRenovacao ? 'Confirmação de Renovação' : 'Confirmação de Candidatura'} - Plataforma de Badges Softinsa`,
+                    `<h2>${isRenovacao ? 'Renovação submetida com sucesso' : 'Candidatura submetida com sucesso'}</h2>
                      <p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>
-                     <p>${mensagemConfirmacao}</p>
-                     <p>Pode acompanhar o estado em <strong>Pedidos → Histórico de Pedidos</strong>.</p>`,
+                     ${mensagemConfirmacao.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                     'pedidos',
                     'Consultor'
                 );
@@ -463,11 +473,16 @@ controllers.candidatar = async (req, res) => {
         for (const talent of talentManagers) {
             const nomeConsultor = utilizador?.NOME_COMPLETO_UTILIZADOR || `Utilizador ${idUtilizador}`;
             const nomeBadge = badgeSubmetido?.NOME_BADGE || `Badge ${idBadge}`;
-            const mensagemTalent = `${nomeConsultor} submeteu uma candidatura ao badge "${nomeBadge}". Mensagem: Sem mensagem adicional. Aceda a Validações → Pedidos Pendentes para analisar as evidências.`;
+            const tipoPedido = isRenovacao ? 'renovação' : 'candidatura';
+            const mensagemTalent = [
+                `${nomeConsultor} submeteu uma ${tipoPedido} ao badge "${nomeBadge}".`,
+                'Mensagem: Sem mensagem adicional.',
+                'Aceda a Validações → Pedidos Pendentes para analisar as evidências.'
+            ].join('\n\n');
             pushService.sendPush(
                 talent.ID_UTILIZADOR,
                 'info',
-                'Nova Candidatura para Validação',
+                isRenovacao ? 'Nova Renovação para Validação' : 'Nova Candidatura para Validação',
                 mensagemTalent,
                 'pedidos',
                 'Talent Manager'
@@ -475,10 +490,10 @@ controllers.candidatar = async (req, res) => {
             try {
                 mailer.sendEmail(
                     talent.EMAIL_UTILIZADOR,
-                    'Nova Candidatura para Validação - Plataforma de Badges Softinsa',
-                    `<h2>Nova candidatura recebida</h2>
+                    `${isRenovacao ? 'Nova Renovação' : 'Nova Candidatura'} para Validação - Plataforma de Badges Softinsa`,
+                    `<h2>${isRenovacao ? 'Nova renovação recebida' : 'Nova candidatura recebida'}</h2>
                      <p>Olá, ${talent.NOME_COMPLETO_UTILIZADOR}.</p>
-                     <p>${mensagemTalent}</p>`,
+                     ${mensagemTalent.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                     'pedidos',
                     'Talent Manager'
                 );
