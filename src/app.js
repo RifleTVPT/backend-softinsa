@@ -50,6 +50,7 @@ const TalentManager = require('./models/TalentManager');
 const ServiceLineLeader = require('./models/ServiceLineLeader');
 const LogAtividadeSistema = require('./models/LogAtividadeSistema');
 const ConfiguracoesSistema = require('./models/ConfiguracoesSistema');
+const MarcoConquista = require('./models/MarcoConquista');
 
 app.set('port', process.env.PORT || 3000);
 
@@ -142,6 +143,11 @@ sequelize.sync({ force: isSqlite, alter: !isSqlite })
                 console.error('Erro ao semear a base de dados SQLite:', seedErr);
             }
         }
+
+        await MarcoConquista.update(
+            { DATA_CRIACAO_MARCO: new Date() },
+            { where: { DATA_CRIACAO_MARCO: null } }
+        );
 
         // Corrige atribuições antigas criadas antes de a validade absoluta
         // configurada pelo Admin ter precedência sobre o padrão em meses.

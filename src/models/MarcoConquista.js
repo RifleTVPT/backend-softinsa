@@ -11,7 +11,7 @@ const MarcoConquista = sequelize.define('MarcoConquista', {
     TIPO_MARCO: { type: DataTypes.STRING(100), allowNull: true },
     PARAMETRO_1: { type: DataTypes.INTEGER, allowNull: true },
     PARAMETRO_2: { type: DataTypes.INTEGER, allowNull: true },
-    DATA_CRIACAO_MARCO: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
+    DATA_CRIACAO_MARCO: { type: DataTypes.DATE, allowNull: true, defaultValue: DataTypes.NOW }
 }, { tableName: 'MARCO_CONQUISTA', timestamps: false });
 
 module.exports = MarcoConquista;
