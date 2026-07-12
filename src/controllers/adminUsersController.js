@@ -331,6 +331,18 @@ controllers.atualizarUtilizador = async (req, res) => {
                 `O email associado à sua conta foi atualizado para ${userAtualizado.EMAIL_UTILIZADOR}.`
             );
         }
+        if ((u.SL_REGISTO || '') !== (userAtualizado.SL_REGISTO || '') || (u.AREA_REGISTO || '') !== (userAtualizado.AREA_REGISTO || '')) {
+            await enviarAvisoContaAdmin(
+                userAtualizado,
+                'Alocação de Conta Atualizada',
+                `<h1>Olá, ${userAtualizado.NOME_COMPLETO_UTILIZADOR}</h1>
+                 <p>A sua alocação na Plataforma de Badges Softinsa foi atualizada pelo Administrador.</p>
+                 <p><b>Service Line:</b> ${userAtualizado.SL_REGISTO || 'N/A'}</p>
+                 <p><b>Área:</b> ${userAtualizado.AREA_REGISTO || 'N/A'}</p>
+                 <p>As recomendações, filtros e estatísticas passam a usar esta nova alocação.</p>`,
+                `A sua alocação foi atualizada. Service Line: ${userAtualizado.SL_REGISTO || 'N/A'} | Área: ${userAtualizado.AREA_REGISTO || 'N/A'}.`
+            );
+        }
         if (novaPassword) {
             await enviarAvisoContaAdmin(
                 userAtualizado,

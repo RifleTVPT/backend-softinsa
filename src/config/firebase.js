@@ -5,11 +5,8 @@ require('dotenv').config();
 let isInitialized = false;
 
 try {
-    // Para produção, normalmente usa-se as variáveis de ambiente com o JSON do Service Account
-    // process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
-    
-    // Como fallback de desenvolvimento, inicializamos com valores vazios para não rebentar a app, 
-    // mas bloqueamos os envios se não estiver configurado corretamente.
+    // Para produção, normalmente usa-se as variáveis de ambiente com o JSON do Service Account process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+    // inicializamos com valores vazios para não rebentar a app mas bloqueamos os envios se não estiver configurado corretamente
     if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
         const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('ascii'));
         initializeApp({

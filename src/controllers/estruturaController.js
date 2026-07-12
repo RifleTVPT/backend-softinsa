@@ -5,6 +5,7 @@ const Area = require('../models/Area');
 const Nivel = require('../models/Nivel');
 const RequisitoPadrao = require('../models/RequisitoPadrao');
 const ServiceLineLearningPath = require('../models/ServiceLineLearningPath');
+const Badge = require('../models/Badge');
 
 const controllers = {};
 
@@ -226,6 +227,14 @@ controllers.eliminarNivelMaisAlto = async (req, res) => {
         
         // O mais alto tem a maior ORDEM_HIERARQUICA ou a última letra
         const nivelMaisAlto = niveis.reduce((prev, current) => (prev.ORDEM_HIERARQUICA > current.ORDEM_HIERARQUICA) ? prev : current);
+
+        const badgesAssociados = await Badge.count({ where: { ID_NIVEL: nivelMaisAlto.ID_NIVEL } });
+        if (badgesAssociados > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Não é possível eliminar o nível "${nivelMaisAlto.NOME_NIVEL}" porque existem ${badgesAssociados} badge(s) associados a este nível. Elimine ou mova esses badges antes de apagar o nível.`
+            });
+        }
         
         // Apaga primeiro os requisitos desse nível para não dar erro de foreign key
         await RequisitoPadrao.destroy({ where: { ID_NIVEL: nivelMaisAlto.ID_NIVEL } });

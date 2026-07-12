@@ -3,7 +3,7 @@ const dns = require('node:dns');
 require('dotenv').config();
 const ConfiguracoesSistema = require('../models/ConfiguracoesSistema');
 
-// Forçar resolução IPv4 primeiro, para evitar erros ENETUNREACH em ambientes (como Render) sem suporte a IPv6
+// Forçar  IPv4 primeiro para evitar erros em ambientes (como Render) sem suporte a IPv6
 if (dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder('ipv4first');
 }
@@ -61,8 +61,6 @@ const enviarPorBrevo = async ({ to, subject, html, config }) => {
 };
 
 
-// Create a reusable transporter object using SMTP transport
-// In development, you can use Ethereal (https://ethereal.email/)
 const normalizarSmtpConfig = (config = {}) => {
     let host = config?.SMTP_HOST || process.env.SMTP_HOST;
     let port = Number(config?.SMTP_PORT || process.env.SMTP_PORT || 587);
@@ -97,8 +95,7 @@ const opcoesTransporte = ({ host, port, secure, user, pass }) => ({
     }
 });
 
-// Create a reusable transporter object using SMTP transport
-// In development, you can use Ethereal (https://ethereal.email/)
+
 const createTransporter = async (config) => {
     let { host, port, secure, user, pass } = normalizarSmtpConfig(config);
 

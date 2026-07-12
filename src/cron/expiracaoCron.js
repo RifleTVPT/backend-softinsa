@@ -23,7 +23,7 @@ const startCronJobs = () => {
             const dataAlvo15Dias = new Date();
             dataAlvo15Dias.setDate(dataAtual.getDate() + 15);
 
-            // Obter badges que expiram nos próximos 30 dias exatos, ou 15 dias exatos (para não enviar spam todos os dias)
+            // Obter badges que expiram nos próximos 30 dias exatos ou 15 dias exatos (para não enviar spam todos os dias)
             // Aqui usamos um intervalo de 1 dia de margem para o trigger
             const badgesPrestesaExpirar = await ConsultorBadge.findAll({
                 where: {
@@ -44,9 +44,9 @@ const startCronJobs = () => {
             });
 
             for (const cb of badgesPrestesaExpirar) {
-                const diasRestantes = Math.ceil((new Date(cb.DATA_EXPIRACAO) - dataAtual) / (1000 * 60 * 60 * 24));
-                
-                // Enviar aviso Apenas nos 30, 15, e 7 dias para evitar spam diário.
+                const diasRestantes = Math.ceil((new Date(cb.DATA_EXPIRACAO) - dataAtual) / (1000 * 60 * 60 * 24));//este cálculo do divisor converte dias em misissegundos por causa da função
+                //Math.ceil arredonda um número sempre pra cima
+                // Enviar aviso Apenas nos 30, 15, e 7 dias para evitar spam
                 if ([30, 15, 7].includes(diasRestantes)) {
                     
                     const util = cb.Consultor.Utilizador;

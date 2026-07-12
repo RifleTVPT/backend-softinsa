@@ -69,8 +69,7 @@ const middleware = require('./middlewares/middleware');
 // middlewares
 app.use('/users', userRoutes);
 
-// Endpoints usados pelos links públicos. Têm de ficar antes do middleware JWT
-// para funcionarem fora de uma sessão autenticada e em janelas anónimas.
+// Endpoints usados pelos links públicos. Têm de ficar antes do middleware JWT para funcionarem sem autenticação
 app.get('/meus-badges/verificacao/:linkUnico', meusBadgesController.getVerificacaoPublica);
 app.get('/meus-badges/verificacao-especial/:idUtilizador/:idMarco', meusBadgesController.getVerificacaoEspecialPublica);
 app.get('/meus-badges/galeria/:idUtilizador', meusBadgesController.getGaleriaPublica);
@@ -104,10 +103,10 @@ app.use('/mobile', middleware.checkToken, mobileRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Servir ficheiros estáticos do frontend construído
+// Mostrar ficheiros estáticos do frontend, se alguém aceder ao site o Express vai enviar os ficheiros do React para o browser do utilizador
 app.use(express.static(path.join(__dirname, '../../frontend-web/dist')));
 
-// Wildcard fallback para servir o index.html em rotas do React SPA
+// Mostrar o index.html em rotas que não são conhecidas no backend, por exemplo com refresh da página
 app.get('*', (req, res, next) => {
     // Evitar servir index.html para rotas de API conhecidas ou uploads
     const apiPrefixes = [
@@ -116,7 +115,7 @@ app.get('*', (req, res, next) => {
         '/relatorios', '/notificacoes', '/expiracao', '/talent',
         '/sll-badges', '/sll-consultores', '/admin-users', '/estrutura',
     ];
-    if (apiPrefixes.some(prefix => req.path.startsWith(prefix))) {
+    if (apiPrefixes.some(prefix => req.path.startsWith(prefix))) { //para distinguir o que é um pedido de página visual de um pedido de dados para a API
         return next();
     }
     
@@ -149,8 +148,7 @@ sequelize.sync({ force: isSqlite, alter: !isSqlite })
             { where: { DATA_CRIACAO_MARCO: null } }
         );
 
-        // Corrige atribuições antigas criadas antes de a validade absoluta
-        // configurada pelo Admin ter precedência sobre o padrão em meses.
+        // Corrige atribuições antigas criadas antes de ter validade absoluta
         const atribuicoesComValidade = await ConsultorBadge.findAll({
             include: [{ model: Badge }]
         });
@@ -163,7 +161,7 @@ sequelize.sync({ force: isSqlite, alter: !isSqlite })
             }
         }
         
-        // Iniciar as Tarefas Agendadas (Cron)
+        // Iniciar as Tarefas Agendadas (Cron) como por exemplo verificar se há algum badge em expiração quando passa a meia noite
         startCronJobs();
 
         app.listen(app.get('port'), () => {

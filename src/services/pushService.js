@@ -27,13 +27,13 @@ const sendPush = async (idUtilizador, tipo, titulo, mensagem, eventoId = null, p
     try {
         const config = await ConfiguracoesSistema.findByPk(1);
 
-        // 1. Validação Global
+        // Validação Global
         if (config && config.GLOBAL_PUSH === false) {
             console.log(`Push cancelado: Envio global de push está inativo. (Para: User ${idUtilizador})`);
             return null;
         }
 
-        // 2. Validação por Matriz
+        // Validação por Matriz
         if (config && config.MATRIZ_NOTIFICACOES && eventoId && perfilStr) {
             try {
                 const matriz = JSON.parse(config.MATRIZ_NOTIFICACOES);
@@ -43,7 +43,7 @@ const sendPush = async (idUtilizador, tipo, titulo, mensagem, eventoId = null, p
             }
         }
 
-        // 3. Criar Notificação na BD
+        // Criar Notificação na BD
         const novaNotif = await Notificacao.create({
             ID_UTILIZADOR: idUtilizador,
             TIPO_NOTIFICACAO: tipo,
