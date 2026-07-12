@@ -162,6 +162,34 @@ const dificuldadePorNivel = {
   ]
 };
 
+const validadeBadgeNormal = (areaChave, nivelLetra) => {
+  const regras = {
+    lowcode: {
+      A: { dias: 30, meses: null },
+      B: { dias: null, meses: 24 },
+      C: { dias: null, meses: 36 },
+      D: { dias: null, meses: 48 },
+      E: { dias: null, meses: null }
+    },
+    devops: {
+      A: { dias: null, meses: 12 },
+      B: { dias: 30, meses: null },
+      C: { dias: null, meses: null },
+      D: { dias: null, meses: 48 },
+      E: { dias: null, meses: 60 }
+    },
+    talent: {
+      A: { dias: null, meses: null },
+      B: { dias: null, meses: 18 },
+      C: { dias: null, meses: 24 },
+      D: { dias: 30, meses: null },
+      E: { dias: null, meses: 60 }
+    }
+  };
+
+  return regras[areaChave]?.[nivelLetra] || { dias: null, meses: 24 };
+};
+
 const categoriaBadge = item => JSON.stringify({
   serviceLine: item.serviceLine,
   area: item.area
@@ -254,6 +282,7 @@ const criarRequisitosBadge = async ({ badge, nivel, descricoes, quantidadePadrao
 const criarBadgeNormal = async ({ item, areaObj, nivelObj, nivel, adminId, requisitosPadraoNivel }) => {
   const nomeBadge = `${item.prefixoBadge} - ${tituloNivel[nivel.letra]}`;
   const descricaoBadge = `${item.descricaoPorNivel[nivel.letra]} Este badge comprova evolução no percurso ${item.area}, com evidências proporcionais ao nível ${nivel.nome}.`;
+  const validade = validadeBadgeNormal(item.chave, nivel.letra);
   const badge = await Badge.create({
     ID_CATEGORIA: 1,
     ID_NIVEL: nivelObj.ID_NIVEL,
@@ -263,9 +292,9 @@ const criarBadgeNormal = async ({ item, areaObj, nivelObj, nivel, adminId, requi
     CATEGORIA_BADGE: categoriaBadge(item),
     PONTOS_BADGE: nivel.pontos,
     URL_IMAGEM: IMAGEM_BADGE_PADRAO,
-    TEMPO_EXPIRACAO_BADGE: 24,
+    TEMPO_EXPIRACAO_BADGE: validade.dias,
     IS_PREMIUM: false,
-    VALIDADE_MESES: 24,
+    VALIDADE_MESES: validade.meses,
     VALIDADE_EXPIRACAO: null
   });
 
