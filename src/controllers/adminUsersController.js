@@ -12,11 +12,22 @@ const mailer = require('../config/mailer');
 const pushService = require('../services/pushService');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const Area = require('../models/Area');
+const ServiceLine = require('../models/ServiceLine');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const { Op } = require('sequelize');
 
 const controllers = {};
 const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
+
+const obterAreaPorNomeEServiceLine = async (nomeArea, nomeSL) => {
+    if (!nomeArea || nomeArea === 'N/A') return null;
+    const where = { NOME_AREA: nomeArea };
+    if (nomeSL && nomeSL !== 'N/A') {
+        const slObj = await ServiceLine.findOne({ where: { NOME_SERVICE_LINE: nomeSL } });
+        if (slObj) where.ID_SERVICE_LINE = slObj.ID_SERVICE_LINE;
+    }
+    return Area.findOne({ where });
+};
 
 const enviarAvisoContaAdmin = async (user, titulo, html, pushMsg = null) => {
     try {
@@ -225,6 +236,14 @@ controllers.atualizarUtilizador = async (req, res) => {
 
         const userAtualizado = await Utilizador.findByPk(id);
 
+        if (perfisString.includes('Consultor')) {
+            const consultorExistente = await Consultor.findOne({ where: { ID_UTILIZADOR: id } });
+            if (consultorExistente) {
+                const areaAtualizada = await obterAreaPorNomeEServiceLine(userAtualizado.AREA_REGISTO, userAtualizado.SL_REGISTO);
+                await consultorExistente.update({ ID_AREA: areaAtualizada?.ID_AREA || null });
+            }
+        }
+
         if (permissoesAlteradas) {
             const antigos = oldPerfis.split(' / ').filter(Boolean);
             const novos = perfisString.split(' / ').filter(Boolean);
@@ -244,7 +263,7 @@ controllers.atualizarUtilizador = async (req, res) => {
             if (removidos.includes('Administrador')) await Administrador.destroy({ where: { ID_UTILIZADOR: id } });
 
             if (adicionados.includes('Consultor')) {
-                const areaSelecionada = area ? await Area.findOne({ where: { NOME_AREA: area } }) : null;
+                const areaSelecionada = await obterAreaPorNomeEServiceLine(userAtualizado.AREA_REGISTO, userAtualizado.SL_REGISTO);
                 await Consultor.create({ ID_UTILIZADOR: id, DATA_ENTRADA_EMPRESA: new Date(), PONTUACAO_TOTAL: 0, ID_AREA: areaSelecionada?.ID_AREA || null });
             }
             if (adicionados.includes('Talent Manager')) await TalentManager.create({ ID_UTILIZADOR: id, DATA_INICIO_FUNC: new Date() });

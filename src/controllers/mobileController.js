@@ -64,6 +64,16 @@ const urlPublicaEvidencia = (req, evidencia) => {
     return `${getApiOrigin(req)}/ficheiros/evidencias/${evidencia.ID_EVIDENCIA}/${nome}`;
 };
 
+const obterAreaAtualUtilizador = async (utilizador) => {
+    if (!utilizador?.AREA_REGISTO || utilizador.AREA_REGISTO === 'N/A') return null;
+    const where = { NOME_AREA: utilizador.AREA_REGISTO };
+    if (utilizador.SL_REGISTO && utilizador.SL_REGISTO !== 'N/A') {
+        const slObj = await ServiceLine.findOne({ where: { NOME_SERVICE_LINE: utilizador.SL_REGISTO } });
+        if (slObj) where.ID_SERVICE_LINE = slObj.ID_SERVICE_LINE;
+    }
+    return Area.findOne({ where });
+};
+
 controllers.sincronizarConsultor = async (req, res) => {
     try {
         const idUtilizador = req.userId;
@@ -110,6 +120,19 @@ controllers.sincronizarConsultor = async (req, res) => {
             Consultor.findAll()
         ]);
 
+        const areaAtual = await obterAreaAtualUtilizador(utilizador);
+        const consultorJson = consultor.toJSON();
+        if (areaAtual && consultorJson.ID_AREA !== areaAtual.ID_AREA) {
+            consultorJson.ID_AREA = areaAtual.ID_AREA;
+        }
+        const consultoresJson = todosConsultores.map(c => {
+            const item = c.toJSON();
+            if (item.ID_CONSULTOR === consultor.ID_CONSULTOR && areaAtual) {
+                item.ID_AREA = areaAtual.ID_AREA;
+            }
+            return item;
+        });
+
         const json = items => items.map(item => item.toJSON());
         const evidenciasJson = evidencias.map(evidencia => ({
             ...evidencia.toJSON(),
@@ -133,8 +156,8 @@ controllers.sincronizarConsultor = async (req, res) => {
             data: {
                 server_time: new Date().toISOString(),
                 utilizador: utilizador.toJSON(),
-                consultor: consultor.toJSON(),
-                consultores: json(todosConsultores),
+                consultor: consultorJson,
+                consultores: consultoresJson,
                 service_lines: json(serviceLines),
                 areas: json(areas),
                 niveis: json(niveis),

@@ -238,11 +238,15 @@ controllers.getConquistasConsultor = async (req, res) => {
                 }
                 else if (['MELHOR_ANO', 'MELHOR_MESES'].includes(m.TIPO_MARCO)) {
                     const totalConsultores = await Consultor.count();
-                    const consultoresAbaixo = await Consultor.count({
-                        where: {
-                            PONTUACAO_TOTAL: { [Op.lt]: currentPoints }
-                        }
-                    });
+                    const janela = janelaMarco(m);
+                    const pontosAtual = janela ? await pontosPeriodo(idUtilizador, janela.inicio, new Date()) : currentPoints;
+                    const todosConsultores = await Consultor.findAll();
+                    let consultoresAbaixo = 0;
+                    for (const c of todosConsultores) {
+                        if (c.ID_CONSULTOR === consultor.ID_CONSULTOR) continue;
+                        const pontosOutro = janela ? await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, new Date()) : (Number(c.PONTUACAO_TOTAL) || 0);
+                        if (pontosOutro < pontosAtual) consultoresAbaixo++;
+                    }
                     const progressoRanking = totalConsultores > 1
                         ? Math.round((consultoresAbaixo / (totalConsultores - 1)) * 100)
                         : 100;
