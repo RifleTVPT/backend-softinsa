@@ -116,7 +116,7 @@ controllers.sincronizarConsultor = async (req, res) => {
                 },
                 order: [['DATA_PUBLICACAO_AVISO', 'DESC']]
             }),
-            HistoricoPontuacao.findAll({ where: { ID_UTILIZADOR: idUtilizador } }),
+            HistoricoPontuacao.findAll(),
             Consultor.findAll()
         ]);
 
