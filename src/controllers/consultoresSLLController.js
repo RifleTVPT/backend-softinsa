@@ -39,7 +39,6 @@ controllers.getListaConsultoresSL = async (req, res) => {
             const myBadgesSL = consultorBadges.filter(cb => cb.ID_CONSULTOR === s.consultor.ID_CONSULTOR);
             
             const areaCounts = {};
-            let maxNivel = 0;
             
             myBadgesSL.forEach(cb => {
                 let areaParsed = cb.Badge?.CATEGORIA_BADGE || 'Sem Área';
@@ -51,21 +50,12 @@ controllers.getListaConsultoresSL = async (req, res) => {
                 } catch(e) {}
                 
                 areaCounts[areaParsed] = (areaCounts[areaParsed] || 0) + 1;
-                const ordemNivel = cb.Badge?.Nivel?.ORDEM_HIERARQUICA || 0;
-                if (ordemNivel > maxNivel) maxNivel = ordemNivel;
             });
             
             const favArea = s.consultor.Utilizador?.AREA_REGISTO
                 || Object.keys(areaCounts).sort((a,b) => areaCounts[b] - areaCounts[a])[0]
                 || 'N/A';
             
-            let nivelExp = 'Iniciante';
-            if (maxNivel === 1) nivelExp = 'Júnior';
-            else if (maxNivel === 2) nivelExp = 'Intermédio';
-            else if (maxNivel === 3) nivelExp = 'Sénior';
-            else if (maxNivel === 4) nivelExp = 'Especialista';
-            else if (maxNivel === 5) nivelExp = 'Líder de Conhecimento';
-
             return {
                 id: s.consultor.ID_CONSULTOR,
                 idUtilizador: s.consultor.ID_UTILIZADOR,
@@ -73,7 +63,6 @@ controllers.getListaConsultoresSL = async (req, res) => {
                 foto: s.consultor.Utilizador?.URL_FOTO || null,
                 sl: sl,
                 area: favArea,
-                experiencia: nivelExp,
                 badges: s.badgesCalculados,
                 pontos: s.pontosCalculados
             };
