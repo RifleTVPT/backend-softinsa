@@ -35,8 +35,6 @@ const seedDatabase = require('./seed');
 const app = express();
 
 const Utilizador = require('./models/Utilizador');
-const Badge = require('./models/Badge');
-const ConsultorBadge = require('./models/ConsultorBadge');
 const Pedido = require('./models/Pedido');
 const Requisito = require('./models/Requisito');
 const Evidencia = require('./models/Evidencia');
@@ -50,7 +48,6 @@ const TalentManager = require('./models/TalentManager');
 const ServiceLineLeader = require('./models/ServiceLineLeader');
 const LogAtividadeSistema = require('./models/LogAtividadeSistema');
 const ConfiguracoesSistema = require('./models/ConfiguracoesSistema');
-const MarcoConquista = require('./models/MarcoConquista');
 
 app.set('port', process.env.PORT || 3000);
 
@@ -143,24 +140,6 @@ sequelize.sync({ force: isSqlite, alter: !isSqlite })
             }
         }
 
-        await MarcoConquista.update(
-            { DATA_CRIACAO_MARCO: new Date() },
-            { where: { DATA_CRIACAO_MARCO: null } }
-        );
-
-        // Corrige atribuições antigas criadas antes de ter validade absoluta
-        const atribuicoesComValidade = await ConsultorBadge.findAll({
-            include: [{ model: Badge }]
-        });
-        for (const atribuicao of atribuicoesComValidade) {
-            if (!atribuicao.Badge?.VALIDADE_EXPIRACAO) continue;
-            const dataConfigurada = new Date(atribuicao.Badge.VALIDADE_EXPIRACAO);
-            const dataAtual = atribuicao.DATA_EXPIRACAO ? new Date(atribuicao.DATA_EXPIRACAO) : null;
-            if (!dataAtual || dataAtual.getTime() !== dataConfigurada.getTime()) {
-                await atribuicao.update({ DATA_EXPIRACAO: dataConfigurada });
-            }
-        }
-        
         // Iniciar as Tarefas Agendadas (Cron) como por exemplo verificar se há algum badge em expiração quando passa a meia noite
         startCronJobs();
 
