@@ -423,7 +423,13 @@ controllers.recuperarPassword = async (req, res) => {
             { where: { EMAIL_UTILIZADOR: email } }
         );
 
-        pushService.sendPush(util.ID_UTILIZADOR, 'system', 'Password Recuperada', 'A sua password foi alterada através da recuperação de password.', 'contas', 'Consultor');
+        await enviarAvisoConta(
+            util,
+            'Password redefinida com sucesso',
+            `<h1>Olá, ${util.NOME_COMPLETO_UTILIZADOR}</h1>
+             <p>A sua password foi redefinida com sucesso através do processo de recuperação.</p>
+             <p>Se não foi o autor desta alteração, contacte a administração da Plataforma de Badges Softinsa.</p>`
+        );
         await registarLogConta(util.ID_UTILIZADOR, 'Recuperação de Password', 'Redefiniu a password através do processo de recuperação.');
 
         res.json({ success: true, message: "Password redefinida com sucesso." });

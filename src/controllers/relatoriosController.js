@@ -5,6 +5,7 @@ const Utilizador = require('../models/Utilizador');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const MarcoConquista = require('../models/MarcoConquista');
+const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const LogExportacao = require('../models/LogExportacao');
 const { Op } = require('sequelize'); // <-- Importante para o Talent Manager
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
@@ -24,27 +25,96 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
         if (!consultor) return res.status(404).json({ success: false, message: "Consultor não encontrado." });
 
         let respostaDados = {};
+        const filtrosAplicados = filtros || {};
+        const ordemPorNivel = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 };
+        let niveisPermitidos = null;
+        if (filtrosAplicados.nivel && filtrosAplicados.nivel !== 'Todos') {
+            const ordem = ordemPorNivel[filtrosAplicados.nivel];
+            if (ordem) {
+                const niveis = await Nivel.findAll({
+                    where: { ORDEM_HIERARQUICA: ordem },
+                    attributes: ['ID_NIVEL']
+                });
+                niveisPermitidos = niveis.map(n => n.ID_NIVEL);
+            }
+        }
+
+        const parseCategoria = (catStr) => {
+            try {
+                if (catStr && String(catStr).startsWith('{')) {
+                    const obj = JSON.parse(catStr);
+                    return { serviceLine: obj.serviceLine || '', area: obj.area || '' };
+                }
+            } catch (e) {}
+            return { serviceLine: catStr || 'N/A', area: catStr || 'N/A' };
+        };
+
+        const formatCategoria = (catStr) => {
+            const cat = parseCategoria(catStr);
+            return `${cat.serviceLine || 'N/A'} - ${cat.area || 'N/A'}`;
+        };
+
+        const correspondeFiltrosBadge = (badge) => {
+            if (!badge) return false;
+            const cat = parseCategoria(badge.CATEGORIA_BADGE);
+            if (filtrosAplicados.serviceLine && filtrosAplicados.serviceLine !== 'Todas' && cat.serviceLine !== filtrosAplicados.serviceLine) return false;
+            if (filtrosAplicados.area && filtrosAplicados.area !== 'Todas' && cat.area !== filtrosAplicados.area) return false;
+            if (niveisPermitidos && !niveisPermitidos.includes(badge.ID_NIVEL)) return false;
+            return true;
+        };
+
+        const dataWhere = (() => {
+            const periodo = filtrosAplicados.periodo;
+            if (!periodo || periodo === 'Todos') return null;
+            let inicio = null;
+            let fim = null;
+            const agora = new Date();
+            if (periodo === 'Último mês') {
+                inicio = new Date(agora);
+                inicio.setMonth(inicio.getMonth() - 1);
+            } else if (periodo === 'Últimos 6 meses') {
+                inicio = new Date(agora);
+                inicio.setMonth(inicio.getMonth() - 6);
+            } else if (periodo === 'Personalizado') {
+                inicio = filtrosAplicados.dataInicio ? new Date(filtrosAplicados.dataInicio) : null;
+                fim = filtrosAplicados.dataFim ? new Date(filtrosAplicados.dataFim) : null;
+                if (fim) fim.setHours(23, 59, 59, 999);
+            }
+            if (inicio && fim) return { [Op.between]: [inicio, fim] };
+            if (inicio) return { [Op.gte]: inicio };
+            if (fim) return { [Op.lte]: fim };
+            return null;
+        })();
 
         // 1. MÉTRICAS DE APROVAÇÃO E REJEIÇÃO
         if (opcoes.metricas) {
-            const pedidos = await Pedido.findAll({ where: { ID_UTILIZADOR: idUtilizador } });
+            const pedidos = await Pedido.findAll({
+                where: {
+                    ID_UTILIZADOR: idUtilizador,
+                    ...(dataWhere ? { DATA_SUBMISSAO_PEDIDO: dataWhere } : {})
+                },
+                include: [{ model: Badge }]
+            });
+            const pedidosFiltrados = pedidos.filter(p => correspondeFiltrosBadge(p.Badge));
             respostaDados.metricas = {
-                aprovados: pedidos.filter(p => p.ESTADO_PEDIDO === 'Aceite').length,
-                rejeitados: pedidos.filter(p => p.ESTADO_PEDIDO === 'Recusado').length,
-                pendentes: pedidos.filter(p => p.ESTADO_PEDIDO === 'Pendente').length,
+                aprovados: pedidosFiltrados.filter(p => p.ESTADO_PEDIDO === 'Aceite').length,
+                rejeitados: pedidosFiltrados.filter(p => p.ESTADO_PEDIDO === 'Recusado').length,
+                pendentes: pedidosFiltrados.filter(p => p.ESTADO_PEDIDO === 'Pendente').length,
             };
         }
 
         // 2. DETALHES DE BADGES OBTIDOS
         if (opcoes.badgesObtidos) {
             const badgesBD = await ConsultorBadge.findAll({
-                where: { ID_CONSULTOR: consultor.ID_CONSULTOR },
+                where: {
+                    ID_CONSULTOR: consultor.ID_CONSULTOR,
+                    ...(dataWhere ? { DATA_ATRIBUICAO_BADGE: dataWhere } : {})
+                },
                 include: [{ model: Badge }]
             });
             
-            let listaMista = badgesBD.map(b => {
-                let sl = b.Badge?.CATEGORIA_BADGE || 'N/A';
-                try { if (sl.startsWith('{')) { const obj = JSON.parse(sl); sl = `${obj.serviceLine || ''} - ${obj.area || ''}`; } } catch(e){}
+            let listaMista = badgesBD.filter(b => correspondeFiltrosBadge(b.Badge)).map(b => {
+                let sl = formatCategoria(b.Badge?.CATEGORIA_BADGE);
                 return {
                     nome: b.Badge?.NOME_BADGE || 'N/A',
                     area: sl,
@@ -55,7 +125,12 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
             });
 
             // Adicionar Badges Premium
-            const marcosBD = await MarcoConsultor.findAll({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR } });
+            const marcosBD = await MarcoConsultor.findAll({
+                where: {
+                    ID_CONSULTOR: consultor.ID_CONSULTOR,
+                    ...(dataWhere ? { DATA_CONQUISTA: dataWhere } : {})
+                }
+            });
             if (marcosBD.length > 0) {
                 const todosMarcosRaw = await MarcoConquista.findAll();
                 marcosBD.forEach(mc => {
@@ -79,24 +154,28 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
         // 3. PEDIDOS PENDENTES E HISTÓRICO GERAL
         if (opcoes.pedidosPendentes || opcoes.historicoPedidos) {
             const pedidosGerais = await Pedido.findAll({
-                where: { ID_UTILIZADOR: idUtilizador },
+                where: {
+                    ID_UTILIZADOR: idUtilizador,
+                    ...(dataWhere ? { DATA_SUBMISSAO_PEDIDO: dataWhere } : {})
+                },
                 include: [{ model: Badge }],
                 order: [['DATA_SUBMISSAO_PEDIDO', 'DESC']]
             });
+            const pedidosFiltrados = pedidosGerais.filter(p => correspondeFiltrosBadge(p.Badge));
 
             if (opcoes.pedidosPendentes) {
-                respostaDados.pedidosPendentes = pedidosGerais
+                respostaDados.pedidosPendentes = pedidosFiltrados
                     .filter(p => p.ESTADO_PEDIDO === 'Pendente')
                     .map(p => ({
-                        nome: p.Badge.NOME_BADGE,
+                        nome: p.Badge?.NOME_BADGE || 'N/A',
                         data: new Date(p.DATA_SUBMISSAO_PEDIDO).toLocaleDateString('pt-PT'),
                         estado: p.ESTADO_PEDIDO
                     }));
             }
 
             if (opcoes.historicoPedidos) {
-                respostaDados.historicoPedidos = pedidosGerais.map(p => ({
-                    nome: p.Badge.NOME_BADGE,
+                respostaDados.historicoPedidos = pedidosFiltrados.map(p => ({
+                    nome: p.Badge?.NOME_BADGE || 'N/A',
                     data: new Date(p.DATA_SUBMISSAO_PEDIDO).toLocaleDateString('pt-PT'),
                     estado: p.ESTADO_PEDIDO,
                     ultimaAcao: new Date(p.DATA_ULTIMA_ATUALIZACAO).toLocaleDateString('pt-PT')
@@ -116,10 +195,30 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
             }));
         }
 
+        if (opcoes.evolucao) {
+            const historico = await HistoricoPontuacao.findAll({
+                where: {
+                    ID_UTILIZADOR: idUtilizador,
+                    ...(dataWhere ? { DATA_ATRIBUICAO: dataWhere } : {})
+                },
+                order: [['DATA_ATRIBUICAO', 'ASC']]
+            });
+            const porMes = {};
+            historico.forEach(h => {
+                const data = new Date(h.DATA_ATRIBUICAO);
+                const chave = data.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' });
+                porMes[chave] = (porMes[chave] || 0) + Number(h.PONTOS_OBTIDOS || 0);
+            });
+            respostaDados.evolucao = Object.entries(porMes).map(([mes, pontos]) => ({ mes, pontos }));
+        }
+
         // 5. DETALHES DE BADGES ESPECIAIS (CONQUISTAS)
         if (opcoes.badgesEspeciais) {
             const marcosBD = await MarcoConsultor.findAll({
-                where: { ID_CONSULTOR: consultor.ID_CONSULTOR }
+                where: {
+                    ID_CONSULTOR: consultor.ID_CONSULTOR,
+                    ...(dataWhere ? { DATA_CONQUISTA: dataWhere } : {})
+                }
             });
             
             // Fazer fetch manual se a associação não estiver definida
@@ -135,6 +234,22 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
                 }
             }
             respostaDados.badgesEspeciais = marcosDetalhes;
+        }
+
+        if (opcoes.competencias) {
+            const badgesBD = await ConsultorBadge.findAll({
+                where: { ID_CONSULTOR: consultor.ID_CONSULTOR },
+                include: [{ model: Badge }]
+            });
+            const agregadas = {};
+            badgesBD.filter(b => correspondeFiltrosBadge(b.Badge)).forEach(b => {
+                const cat = parseCategoria(b.Badge?.CATEGORIA_BADGE);
+                const chave = cat.area || 'N/A';
+                if (!agregadas[chave]) agregadas[chave] = { area: chave, badges: 0, pontos: 0 };
+                agregadas[chave].badges += 1;
+                agregadas[chave].pontos += Number(b.Badge?.PONTOS_BADGE || 0);
+            });
+            respostaDados.competencias = Object.values(agregadas);
         }
 
         // --- REGISTAR A AÇÃO DE EXPORTAÇÃO NO LOG (Auditoria) ---
