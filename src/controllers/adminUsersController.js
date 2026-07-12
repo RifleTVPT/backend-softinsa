@@ -18,6 +18,10 @@ const { Op } = require('sequelize');
 
 const controllers = {};
 const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
+const valorEstruturaValido = valor => {
+    const normalizado = String(valor || '').trim();
+    return normalizado && !['Global', 'N/A', 'Todas', 'Service Line', 'Área'].includes(normalizado);
+};
 
 const obterAreaPorNomeEServiceLine = async (nomeArea, nomeSL) => {
     if (!nomeArea || nomeArea === 'N/A') return null;
@@ -84,6 +88,14 @@ controllers.criarUtilizador = async (req, res) => {
         // Junta o array de perfis com uma barra (ex: "Consultor / Talent Manager")
         const perfisString = (perfis && perfis.length > 0) ? perfis.join(' / ') : 'Consultor';
         const passwordInicial = passwordTemporaria || 'Softinsa@2026';
+        const perfisArray = perfis && perfis.length > 0 ? perfis : ['Consultor'];
+
+        if ((perfisArray.includes('Consultor') || perfisArray.includes('Service Line Leader')) && !valorEstruturaValido(sl)) {
+            return res.status(400).json({ success: false, message: 'Selecione uma Service Line para este perfil.' });
+        }
+        if (perfisArray.includes('Consultor') && !valorEstruturaValido(area)) {
+            return res.status(400).json({ success: false, message: 'Selecione uma Área para o perfil de Consultor.' });
+        }
 
         const novoUser = await Utilizador.create({
             ID_ADMIN: 1, 
@@ -100,17 +112,17 @@ controllers.criarUtilizador = async (req, res) => {
         });
 
         // Consoante os perfis escolhidos, insere nas tabelas correspondentes
-        if (perfis.includes('Consultor')) {
-            const areaSelecionada = area ? await Area.findOne({ where: { NOME_AREA: area } }) : null;
+        if (perfisArray.includes('Consultor')) {
+            const areaSelecionada = await obterAreaPorNomeEServiceLine(area, sl);
             await Consultor.create({ ID_UTILIZADOR: novoUser.ID_UTILIZADOR, DATA_ENTRADA_EMPRESA: new Date(), PONTUACAO_TOTAL: 0, ID_AREA: areaSelecionada?.ID_AREA || null });
         }
-        if (perfis.includes('Talent Manager')) {
+        if (perfisArray.includes('Talent Manager')) {
             await TalentManager.create({ ID_UTILIZADOR: novoUser.ID_UTILIZADOR, DATA_INICIO_FUNC: new Date() });
         }
-        if (perfis.includes('Service Line Leader')) {
+        if (perfisArray.includes('Service Line Leader')) {
             await ServiceLineLeader.create({ ID_UTILIZADOR: novoUser.ID_UTILIZADOR, CARGO_SLL: 'Líder de Área', DATA_INICIO_FUNCOES: new Date() });
         }
-        if (perfis.includes('Administrador')) {
+        if (perfisArray.includes('Administrador')) {
             await Administrador.create({ ID_UTILIZADOR: novoUser.ID_UTILIZADOR, DATA_REGISTO_PLATAFORMA: new Date() });
         }
 
@@ -214,13 +226,23 @@ controllers.atualizarUtilizador = async (req, res) => {
         const perfisString = (perfis && perfis.length > 0) ? perfis.join(' / ') : u.PERFIL_UTILIZADOR;
         const permissoesAlteradas = u.PERFIL_UTILIZADOR !== perfisString;
         const oldPerfis = u.PERFIL_UTILIZADOR || '';
+        const perfisFinais = perfisString.split(' / ').filter(Boolean);
+        const slFinal = sl !== undefined ? sl : u.SL_REGISTO;
+        const areaFinal = area !== undefined ? area : u.AREA_REGISTO;
+
+        if ((perfisFinais.includes('Consultor') || perfisFinais.includes('Service Line Leader')) && !valorEstruturaValido(slFinal)) {
+            return res.status(400).json({ success: false, message: 'Selecione uma Service Line para este perfil.' });
+        }
+        if (perfisFinais.includes('Consultor') && !valorEstruturaValido(areaFinal)) {
+            return res.status(400).json({ success: false, message: 'Selecione uma Área para o perfil de Consultor.' });
+        }
 
         const camposAtualizar = {
                 NOME_COMPLETO_UTILIZADOR: nome, 
                 EMAIL_UTILIZADOR: email,
                 PERFIL_UTILIZADOR: perfisString,
-                SL_REGISTO: sl !== undefined ? sl : u.SL_REGISTO,
-                AREA_REGISTO: area !== undefined ? area : u.AREA_REGISTO
+                SL_REGISTO: slFinal,
+                AREA_REGISTO: areaFinal
         };
         if (novaPassword) {
             if (!passwordForte(novaPassword)) {

@@ -669,7 +669,7 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
             { label: "Total de Acessos na Plataforma", valor: totalAcessos.toString(), trend: `${trendAcessos >= 0 ? '+' : ''} ${trendAcessos} % vs mês passado`, color: trendAcessos >= 0 ? "text-success" : "text-danger" },
             { label: "Utilizadores Ativos", valor: totalUtilizadores.toString(), trend: `${usersEsteMes} novos ativos este mês`, color: "text-primary" },
             { label: "Taxa de Interação", valor: `${taxaInteracao} %`, trend: "Engagement Mensal", color: "text-primary" },
-            { label: "Taxa Aprovação Badges", valor: `${taxaAprovacao} %`, trend: `${trendAprovacao >= 0 ? '+' : ''} ${trendAprovacao} p.p. vs mês passado`, color: trendAprovacao >= 0 ? "text-success" : "text-danger" }
+            { label: "Taxa Aprovação Badges", valor: `${taxaAprovacao} %`, trend: "Pedidos aceites entre pedidos decididos", color: "text-primary" }
         ];
 
         // 2. Acessos 7 Dias Reais

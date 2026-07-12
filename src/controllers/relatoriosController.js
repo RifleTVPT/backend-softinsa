@@ -914,24 +914,22 @@ controllers.gerarRelatorioAdmin = async (req, res) => {
         }
 
         let dataWhere = null;
+        let dataMin = null;
+        let dataMax = null;
         if (filtros.periodoTempo && filtros.periodoTempo !== 'Todos') {
-            let dataMin = new Date();
-            let dataMax = null;
-            if (filtros.periodoTempo === 'Últimos 3 meses') Object.assign(dataMin, { month: dataMin.setMonth(dataMin.getMonth() - 3) });
-            else if (filtros.periodoTempo === 'Últimos 6 meses') Object.assign(dataMin, { month: dataMin.setMonth(dataMin.getMonth() - 6) });
-            else if (filtros.periodoTempo === 'Ano Corrente') {
-                dataMin = new Date(new Date().getFullYear(), 0, 1);
-            }
-            if (filtros.dataInicio) dataMin = new Date(filtros.dataInicio);
-            if (filtros.dataFim) {
-                dataMax = new Date(filtros.dataFim);
-                dataMax.setHours(23, 59, 59, 999);
-            }
-
-            if (dataMin && dataMax) dataWhere = { [Op.between]: [dataMin, dataMax] };
-            else if (dataMin) dataWhere = { [Op.gte]: dataMin };
-            else if (dataMax) dataWhere = { [Op.lte]: dataMax };
+            dataMin = new Date();
+            if (filtros.periodoTempo === 'Últimos 3 meses') dataMin.setMonth(dataMin.getMonth() - 3);
+            else if (filtros.periodoTempo === 'Últimos 6 meses') dataMin.setMonth(dataMin.getMonth() - 6);
+            else if (filtros.periodoTempo === 'Ano Corrente') dataMin = new Date(new Date().getFullYear(), 0, 1);
         }
+        if (filtros.dataInicio) dataMin = new Date(filtros.dataInicio);
+        if (filtros.dataFim) {
+            dataMax = new Date(filtros.dataFim);
+            dataMax.setHours(23, 59, 59, 999);
+        }
+        if (dataMin && dataMax) dataWhere = { [Op.between]: [dataMin, dataMax] };
+        else if (dataMin) dataWhere = { [Op.gte]: dataMin };
+        else if (dataMax) dataWhere = { [Op.lte]: dataMax };
 
         const parseCategoria = (catStr) => {
             try { if (catStr && catStr.startsWith('{')) { const obj = JSON.parse(catStr); return `${obj.serviceLine || ''} - ${obj.area || ''}`; } } catch(e){}
