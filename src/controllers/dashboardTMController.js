@@ -128,7 +128,7 @@ controllers.getDashboardTMData = async (req, res) => {
         // 6. Gráficos Dinâmicos
         const mesesLabels = [];
         const datasetsLinhas = [];
-        const coresSL = ['#F93131', '#713FAA', '#0d6efd', '#20c997', '#fd7e14'];
+        const coresSL = ['#F93131', '#713FAA', '#0d6efd', '#20c997', '#fd7e14', '#6610f2', '#198754', '#0dcaf0', '#ffc107', '#dc3545'];
 
         for (let i = 6; i >= 0; i--) {
             const dataBase = new Date();
@@ -140,17 +140,22 @@ controllers.getDashboardTMData = async (req, res) => {
         const todosOsBadgesAtribuidos = await ConsultorBadge.findAll({ include: [{ model: Badge }] });
         const mapSLGrafico = {};
 
-        // Agrupar por Service Line para obter as Top 2 ou 3 para o gráfico
+        const serviceLinesAtivasGrafico = await ServiceLine.findAll({
+            where: { ESTADO_ATIVO_SERVICE_LINE: true },
+            order: [['NOME_SERVICE_LINE', 'ASC']]
+        });
+        serviceLinesAtivasGrafico.forEach(serviceLine => {
+            mapSLGrafico[serviceLine.NOME_SERVICE_LINE] = { total: 0, dadosMensais: [0,0,0,0,0,0,0] };
+        });
+
+        // Agrupar por Service Line para ordenar a legenda sem esconder SLs com candidaturas.
         todosOsBadgesAtribuidos.forEach(cb => {
             const sl = getSL(cb.Badge);
             if(!mapSLGrafico[sl]) mapSLGrafico[sl] = { total: 0, dadosMensais: [0,0,0,0,0,0,0] };
             mapSLGrafico[sl].total++;
         });
 
-        // Obter as 2 Service Lines mais ativas para o Gráfico de Linhas
-        const topSLsGrafico = Object.keys(mapSLGrafico).sort((a,b) => mapSLGrafico[b].total - mapSLGrafico[a].total).slice(0, 2);
-
-        // Preencher dados mensais para essas SLs
+        // Preencher dados mensais de todas as SLs com candidaturas no período.
         for (let i = 6; i >= 0; i--) {
             const indexLabel = 6 - i;
             const mesStart = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
@@ -163,17 +168,20 @@ controllers.getDashboardTMData = async (req, res) => {
 
             pedidosNesteMes.forEach(p => {
                 const sl = getSL(p.Badge);
-                if(topSLsGrafico.includes(sl)) {
-                    mapSLGrafico[sl].dadosMensais[indexLabel]++;
-                }
+                if(!mapSLGrafico[sl]) mapSLGrafico[sl] = { total: 0, dadosMensais: [0,0,0,0,0,0,0] };
+                mapSLGrafico[sl].dadosMensais[indexLabel]++;
             });
         }
 
-        topSLsGrafico.forEach((sl, index) => {
+        const slsGrafico = Object.keys(mapSLGrafico)
+            .filter(sl => mapSLGrafico[sl].dadosMensais.some(valor => valor > 0))
+            .sort((a,b) => mapSLGrafico[b].total - mapSLGrafico[a].total || a.localeCompare(b));
+
+        slsGrafico.forEach((sl, index) => {
             datasetsLinhas.push({
                 label: sl,
                 data: mapSLGrafico[sl].dadosMensais,
-                borderColor: coresSL[index], backgroundColor: 'transparent', tension: 0.4, pointRadius: 4,
+                borderColor: coresSL[index % coresSL.length], backgroundColor: 'transparent', tension: 0.4, pointRadius: 4,
             });
         });
 
