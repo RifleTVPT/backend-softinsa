@@ -3,6 +3,8 @@ const Utilizador = require('../models/Utilizador');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
 const MarcoConsultor = require('../models/MarcoConsultor');
+const Area = require('../models/Area');
+const ServiceLine = require('../models/ServiceLine');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const { Op } = require('sequelize');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
@@ -489,16 +491,32 @@ controllers.getGamificacaoSLL = async (req, res) => {
         const consultoresComBadge = statsSL.filter(stat => stat.badgesCalculados > 0).length;
         const percComBadge = totalConsultoresSL ? Math.round((consultoresComBadge / totalConsultoresSL) * 100) : 0;
 
-        // 2. Doughnut (Áreas da SL)
+        const slModel = await ServiceLine.findOne({ where: { NOME_SERVICE_LINE: sl } });
+        const areasDaSL = slModel
+            ? await Area.findAll({ where: { ID_SERVICE_LINE: slModel.ID_SERVICE_LINE } })
+            : [];
+        const nomesAreasDaSL = new Set(areasDaSL.map(a => a.NOME_AREA));
+
+        const formatAreaLabel = (areaName, serviceLineBadge) => {
+            if (!areaName || areaName === 'Sem Área') return areaName || 'Sem Área';
+            return serviceLineBadge && serviceLineBadge !== sl && !nomesAreasDaSL.has(areaName)
+                ? `${areaName} (Service Line externa)`
+                : areaName;
+        };
+
+        // 2. Doughnut (Áreas da SL e áreas externas obtidas por consultores da SL)
         const areasCount = {};
         cbSL.forEach(cb => {
             let areaName = cb.Badge?.NOME_BADGE || 'Sem Área';
+            let serviceLineBadge = sl;
             try {
                 if (cb.Badge?.CATEGORIA_BADGE?.startsWith('{')) {
                     const catObj = JSON.parse(cb.Badge.CATEGORIA_BADGE);
                     if (catObj.area) areaName = catObj.area;
+                    if (catObj.serviceLine) serviceLineBadge = catObj.serviceLine;
                 }
             } catch(e) {}
+            areaName = formatAreaLabel(areaName, serviceLineBadge);
             areasCount[areaName] = (areasCount[areaName] || 0) + 1;
         });
 
@@ -540,7 +558,7 @@ controllers.getGamificacaoSLL = async (req, res) => {
                     ORIGEM: 'Service Line Leader',
                     STATUS: 'Em Progresso'
                 },
-                limit: 3, order: [['DATA_OBJETIVO', 'ASC']]
+                order: [['DATA_OBJETIVO', 'ASC']]
             }) : [];
             for (let o of objetivosAtivos) {
                 const u = await Utilizador.findByPk(o.ID_UTILIZADOR);
@@ -555,10 +573,9 @@ controllers.getGamificacaoSLL = async (req, res) => {
             objFormatados = [];
         }
 
-        // 6. 3 Badges Premium (Catálogo de MarcoConquista)
+        // 6. Badges Premium (Catálogo completo de MarcoConquista)
         const marcosPremium = await MarcoConquista.findAll({
-            order: [['ID_MARCO', 'DESC']],
-            limit: 3
+            order: [['TITULO_MARCO', 'ASC']]
         });
 
         res.json({
@@ -572,7 +589,13 @@ controllers.getGamificacaoSLL = async (req, res) => {
                 bar: { labels: mesesLabels, data: barData },
                 consultores: consultoresLista,
                 objetivos: objFormatados,
-                premiumBadges: marcosPremium.map(m => ({ id: m.ID_MARCO, nome: m.TITULO_MARCO, img: m.URL_IMAGEM_MARCO }))
+                premiumBadges: marcosPremium.map(m => ({
+                    id: m.ID_MARCO,
+                    nome: m.TITULO_MARCO,
+                    tipo: m.TIPO_MARCO || m.TIPO_CONQUISTA || m.TIPO_REGRA || 'Conquista Especial',
+                    pontos: m.PONTOS_EXTRA || 0,
+                    img: m.URL_IMAGEM_MARCO
+                }))
             }
         });
 

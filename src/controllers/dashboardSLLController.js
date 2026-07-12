@@ -8,6 +8,8 @@ const Utilizador = require('../models/Utilizador');
 const Nivel = require('../models/Nivel');
 const AvisoGeral = require('../models/AvisoGeral');
 const Notificacao = require('../models/Notificacao');
+const Area = require('../models/Area');
+const ServiceLine = require('../models/ServiceLine');
 const { Op } = require('sequelize');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
 
@@ -120,18 +122,33 @@ controllers.getDashboardSLLData = async (req, res) => {
             .sort((a, b) => b.pontos - a.pontos)
             .slice(0, 5);
 
+        const slModel = await ServiceLine.findOne({ where: { NOME_SERVICE_LINE: serviceLine } });
+        const areasDaSL = slModel
+            ? await Area.findAll({ where: { ID_SERVICE_LINE: slModel.ID_SERVICE_LINE } })
+            : [];
+        const nomesAreasDaSL = new Set(areasDaSL.map(a => a.NOME_AREA));
+        const formatAreaLabel = (areaName, serviceLineBadge) => {
+            if (!areaName || areaName === 'Sem Área') return areaName || 'Sem Área';
+            return serviceLineBadge && serviceLineBadge !== serviceLine && !nomesAreasDaSL.has(areaName)
+                ? `${areaName} (Service Line externa)`
+                : areaName;
+        };
+
         // Prepara dinamicamente o Doughnut
         const countAreas = {};
         const consultoresSL_Badges = todosCbSL;
         
         consultoresSL_Badges.forEach(cb => {
             let areaName = cb.Badge?.NOME_BADGE || 'Sem Área';
+            let serviceLineBadge = serviceLine;
             try {
                 if (cb.Badge?.CATEGORIA_BADGE?.startsWith('{')) {
                     const catObj = JSON.parse(cb.Badge.CATEGORIA_BADGE);
                     if (catObj.area) areaName = catObj.area;
+                    if (catObj.serviceLine) serviceLineBadge = catObj.serviceLine;
                 }
             } catch(e) {}
+            areaName = formatAreaLabel(areaName, serviceLineBadge);
             countAreas[areaName] = (countAreas[areaName] || 0) + 1;
         });
 
