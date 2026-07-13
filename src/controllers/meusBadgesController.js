@@ -51,6 +51,12 @@ const obterOrigemApi = (req) => (
     || `${req.protocol}://${req.get('host')}`
 ).replace(/\/$/, '');
 
+const obterOrigemFrontend = () => (
+    process.env.FRONTEND_URL
+    || process.env.PUBLIC_APP_URL
+    || 'https://softinsa-plataforma.onrender.com'
+).replace(/\/$/, '');
+
 const obterImagemPublica = (req, imagem) => {
     const origemApi = obterOrigemApi(req);
     const valor = String(imagem || '').trim();
@@ -382,7 +388,7 @@ controllers.getPartilhaLinkedInBadge = async (req, res) => {
             return res.status(404).send('Badge público não encontrado ou expirado.');
         }
 
-        const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const frontendUrl = obterOrigemFrontend();
         const badge = cb.Badge;
         const consultor = cb.Consultor.Utilizador;
 
@@ -475,7 +481,7 @@ controllers.getPartilhaLinkedInGaleria = async (req, res) => {
             where: { ID_CONSULTOR: consultor.ID_CONSULTOR }
         });
 
-        const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const frontendUrl = obterOrigemFrontend();
         const nome = consultor.Utilizador.NOME_COMPLETO_UTILIZADOR;
         const total = totalBadges + totalPremium;
         return enviarPaginaPartilha(req, res, {
@@ -718,7 +724,7 @@ controllers.getPartilhaLinkedInEspecial = async (req, res) => {
             return res.status(404).send('Badge premium público não encontrado.');
         }
 
-        const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const frontendUrl = obterOrigemFrontend();
         
         const dataAtribuicao = new Date(relacao.DATA_CONQUISTA).toLocaleDateString('pt-PT');
         
@@ -887,7 +893,7 @@ controllers.downloadCertificado = async (req, res) => {
         doc.fontSize(12).fillColor('#333').text(`Service Line: ${slParsed}   |   Área: ${areaParsed}   |   Nível: ${levelName} (${levelLetter})`, { align: 'center' });
         doc.moveDown(0.5);
         
-        const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const frontendUrl = obterOrigemFrontend();
         doc.fontSize(10).fillColor('#999999').text(`Link de Verificação Oficial: ${frontendUrl}/verificacao/${encodeURIComponent(cb.LINK_UNICO_BADGE)}`, { align: 'center' });
 
         // Segunda página: informação equivalente ao ecrã de detalhes do badge.
