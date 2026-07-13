@@ -11,6 +11,7 @@ const mailer = require('../config/mailer');
 const { obterServiceLineSLL } = require('../utils/sllServiceLineHelper');
 const { uploadMulterFile } = require('../services/cloudFileService');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
+const Notificacao = require('../models/Notificacao');
 const { Op } = require('sequelize');
 
 const controllers = {};
@@ -52,7 +53,78 @@ controllers.register = async (req, res) => {
         }
         const emailExiste = await Utilizador.findOne({ where: { EMAIL_UTILIZADOR: email } });
         if (emailExiste) {
-            return res.status(400).json({ success: false, message: 'Este email já se encontra registado.' });
+            if (emailExiste.ESTADO_CONTA_UTILIZADOR !== 'Recusado') {
+                return res.status(400).json({ success: false, message: 'Este email já se encontra registado.' });
+            }
+
+            await emailExiste.update({
+                NOME_COMPLETO_UTILIZADOR: nome,
+                PASSWORD_UTILIZADOR: password,
+                PERFIL_UTILIZADOR: perfil,
+                ESTADO_CONTA_UTILIZADOR: 'Pendente',
+                DATA_REGISTO_UTILIZADOR: new Date(),
+                IS_PRIMEIRO_ACESSO: true,
+                MOTIVACAO_REGISTO: motivacao || null,
+                SL_REGISTO: slRegisto || null,
+                AREA_REGISTO: areaRegisto || null,
+                FCM_TOKEN: null
+            });
+
+            try {
+                await PreferenciasUtilizador.findOrCreate({
+                    where: { ID_UTILIZADOR: emailExiste.ID_UTILIZADOR },
+                    defaults: {
+                        ID_UTILIZADOR: emailExiste.ID_UTILIZADOR,
+                        IDIOMA_APP: 'pt',
+                        RECEBER_EMAIL_PEDIDOS: true,
+                        RECEBER_PUSH_EXPIRACAO: true,
+                        EXIBIR_LINK_PUBLICO: true,
+                        TERMOS_RGPD: true
+                    }
+                });
+            } catch (prefErr) {
+                console.error("Aviso: Falha ao garantir preferências no novo pedido de registo.", prefErr);
+            }
+
+            await LogAtividadeSistema.create({
+                ID_UTILIZADOR: emailExiste.ID_UTILIZADOR,
+                TIPO_ATIVIDADE: 'Novo Pedido de Registo',
+                DETALHES_ATIVIDADE: `Utilizador com registo recusado submeteu novo pedido como ${perfil}.`,
+                DATA_HORA_ATIVIDADE: new Date()
+            }).catch(() => {});
+
+            try {
+                const admins = await Utilizador.findAll({
+                    where: {
+                        PERFIL_UTILIZADOR: { [Op.like]: '%Administrador%' },
+                        ESTADO_CONTA_UTILIZADOR: 'Ativo'
+                    }
+                });
+                for (const admin of admins) {
+                    await Notificacao.create({
+                        ID_UTILIZADOR: admin.ID_UTILIZADOR,
+                        TITULO_NOTIFICACAO: 'Novo Pedido de Registo',
+                        MENSAGEM_NOTIFICACAO: `${nome} voltou a submeter um pedido de registo com o email ${email}.`,
+                        TIPO_NOTIFICACAO: 'contas'
+                    });
+                }
+            } catch (notifErr) {
+                console.error("Aviso: Falha ao gerar notificações para admins no novo pedido de registo.", notifErr);
+            }
+
+            try {
+                mailer.sendEmail(
+                    email,
+                    'Pedido de Registo Reenviado - Plataforma de Badges Softinsa',
+                    `<h1>Olá, ${nome}</h1><p>O seu novo pedido de registo como <b>${perfil}</b> foi recebido com sucesso.</p><p>A sua conta encontra-se novamente pendente de aprovação pela equipa administrativa.</p>`,
+                    'contas',
+                    perfil
+                );
+            } catch (mailErr) {
+                console.error("Aviso: Falha ao enviar email de novo pedido de registo.", mailErr);
+            }
+
+            return res.status(201).json({ success: true, message: "Registo submetido com sucesso! A aguardar aprovação da administração.", data: emailExiste });
         }
         const novoUser = await Utilizador.create({
             NOME_COMPLETO_UTILIZADOR: nome,
@@ -402,8 +474,17 @@ controllers.verificarEmailRecuperacao = async (req, res) => {
     try {
         const { email } = req.body;
         const util = await Utilizador.findOne({ where: { EMAIL_UTILIZADOR: email } });
-        if (!util) return res.status(404).json({ success: false, message: 'Email não associado a um utilizador registado.' });
-        if (util.ESTADO_CONTA_UTILIZADOR !== 'Ativo') return res.status(400).json({ success: false, message: util.ESTADO_CONTA_UTILIZADOR === 'Inativo' ? 'A sua conta encontra-se desativada.' : 'A sua conta ainda aguarda aprovação por um Administrador.' });
+        if (!util || util.ESTADO_CONTA_UTILIZADOR === 'Recusado') {
+            return res.status(404).json({ success: false, message: 'Email não associado a um utilizador registado.' });
+        }
+        if (util.ESTADO_CONTA_UTILIZADOR !== 'Ativo') {
+            return res.status(400).json({
+                success: false,
+                message: util.ESTADO_CONTA_UTILIZADOR === 'Inativo'
+                    ? 'A sua conta encontra-se desativada.'
+                    : 'A sua conta ainda aguarda aprovação por um Administrador.'
+            });
+        }
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -418,10 +499,17 @@ controllers.recuperarPassword = async (req, res) => {
         if (!passwordForte(novaPassword)) return res.status(400).json({ success: false, message: "A password deve ter 8+ caracteres, uma maiúscula, uma minúscula, um número e um caractere especial." });
         
         const util = await Utilizador.findOne({ where: { EMAIL_UTILIZADOR: email } });
-        if (!util) return res.status(404).json({ success: false, message: "Email não associado a um utilizador registado." });
+        if (!util || util.ESTADO_CONTA_UTILIZADOR === 'Recusado') {
+            return res.status(404).json({ success: false, message: "Email não associado a um utilizador registado." });
+        }
 
         if (util.ESTADO_CONTA_UTILIZADOR !== 'Ativo') {
-            return res.status(400).json({ success: false, message: "A sua conta ainda se encontra a aguardar aprovação por um Administrador." });
+            return res.status(400).json({
+                success: false,
+                message: util.ESTADO_CONTA_UTILIZADOR === 'Inativo'
+                    ? 'A sua conta encontra-se desativada.'
+                    : "A sua conta ainda se encontra a aguardar aprovação por um Administrador."
+            });
         }
 
         const passHash = bcrypt.hashSync(novaPassword, 10);
