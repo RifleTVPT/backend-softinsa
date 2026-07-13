@@ -24,6 +24,14 @@ const {
   Badge,
   Requisito,
   MarcoConquista,
+  ConsultorBadge,
+  MarcoConsultor,
+  Pedido,
+  HistoricoPedido,
+  RegistoHistoricoPedido,
+  HistoricoPontuacao,
+  Notificacao,
+  ObjetivoTimeline,
   ConfiguracoesSistema,
   PreferenciasUtilizador,
   LogAtividadeSistema
@@ -335,6 +343,380 @@ const criarBadgePremium = async ({ titulo, descricao, pontos, tipo, param1, para
   });
 };
 
+const addDays = (date, days) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const addMonths = (date, months) => {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+};
+
+const dataRelativa = ({ meses = 0, dias = 0 }) => addDays(addMonths(DATA_BASE, meses), dias);
+
+const calcularExpiracaoSeed = (badge, dataAtribuicao) => {
+  if (badge.TEMPO_EXPIRACAO_BADGE) return addDays(dataAtribuicao, badge.TEMPO_EXPIRACAO_BADGE);
+  if (badge.VALIDADE_MESES) return addMonths(dataAtribuicao, badge.VALIDADE_MESES);
+  return null;
+};
+
+const getRequisitoCodigo = requisito => {
+  const titulo = String(requisito?.TITULO_REQUISITO || '');
+  const match = titulo.match(/Requisito\s+([A-Z]\d+)/i);
+  return match ? match[1].toUpperCase() : null;
+};
+
+const criarHistoricoDemo = async ({ pedido, passos }) => {
+  for (const passo of passos) {
+    const historico = await HistoricoPedido.create({
+      ID_UTILIZADOR: passo.idUtilizador,
+      DATA_REGISTO_PEDIDO: passo.data,
+      ESTADO_ATUAL_PEDIDO: passo.estado,
+      TIPO_ACAO: passo.acao,
+      COMENTARIO_VALIDADOR: passo.comentario || null,
+      PERFIL_DECISOR: passo.perfil,
+      STATUS_RESULTADO: passo.resultado
+    });
+
+    await RegistoHistoricoPedido.create({
+      ID_PEDIDO: pedido.ID_PEDIDO,
+      ID_HISTORICO: historico.ID_HISTORICO
+    });
+  }
+};
+
+const criarPedidoDemo = async ({
+  consultorUser,
+  badge,
+  estado,
+  data,
+  tmId = null,
+  sllId = null,
+  decisorTmUserId = null,
+  decisorSllUserId = null,
+  comentario = null,
+  incluirEvidencias = true
+}) => {
+  const pedido = await Pedido.create({
+    ID_UTILIZADOR: consultorUser.ID_UTILIZADOR,
+    ID_TM: tmId,
+    ID_SLL: sllId,
+    ID_BADGE: badge.ID_BADGE,
+    DATA_SUBMISSAO_PEDIDO: data,
+    ESTADO_PEDIDO: estado,
+    COMENTARIO_CONSULTOR: `Candidatura de demonstração ao badge ${badge.NOME_BADGE}.`,
+    DATA_ULTIMA_ATUALIZACAO: addDays(data, estado === 'Pendente' ? 0 : 2)
+  });
+
+  const passos = [
+    {
+      idUtilizador: consultorUser.ID_UTILIZADOR,
+      data,
+      estado: 'Pendente',
+      acao: 'Submeteu candidatura',
+      perfil: 'Consultor',
+      resultado: 'pending'
+    }
+  ];
+
+  if (['Em Análise SLL', 'Aceite', 'Recusado', 'Rascunho'].includes(estado) && decisorTmUserId) {
+    passos.push({
+      idUtilizador: decisorTmUserId,
+      data: addDays(data, 1),
+      estado: estado === 'Recusado' && !sllId ? 'Recusado' : 'Em Análise SLL',
+      acao: estado === 'Recusado' && !sllId ? 'Rejeitou o pedido' : 'Validou e enviou para o SLL',
+      comentario: estado === 'Recusado' && !sllId
+        ? (comentario || 'Evidências insuficientes para validação pelo Talent Manager.')
+        : 'Pedido validado pelo Talent Manager.',
+      perfil: 'Talent Manager',
+      resultado: estado === 'Recusado' && !sllId ? 'danger' : 'success'
+    });
+  }
+
+  if (['Aceite', 'Recusado', 'Rascunho'].includes(estado) && sllId && decisorSllUserId) {
+    passos.push({
+      idUtilizador: decisorSllUserId,
+      data: addDays(data, 2),
+      estado,
+      acao: estado === 'Aceite'
+        ? 'Aprovou o pedido'
+        : (estado === 'Recusado' ? 'Rejeitou o pedido' : 'Devolveu para correção'),
+      comentario: comentario || (estado === 'Aceite'
+        ? 'Evidências aceites e badge atribuído.'
+        : (estado === 'Recusado'
+          ? 'Pedido recusado após validação final.'
+          : 'Rever ou substituir as evidências assinaladas.')),
+      perfil: 'Service Line Leader',
+      resultado: estado === 'Aceite' ? 'success' : (estado === 'Recusado' ? 'danger' : 'pending')
+    });
+  }
+
+  await criarHistoricoDemo({ pedido, passos });
+
+  if (incluirEvidencias) {
+    const requisitos = await Requisito.findAll({
+      where: { ID_BADGE: badge.ID_BADGE },
+      order: [['ID_REQUISITO', 'ASC']],
+      limit: 3
+    });
+
+    for (const requisito of requisitos) {
+      const codigo = getRequisitoCodigo(requisito) || `REQ${requisito.ID_REQUISITO}`;
+      await sequelize.models.Evidencia.create({
+        ID_PEDIDO: pedido.ID_PEDIDO,
+        ID_REQUISITO: requisito.ID_REQUISITO,
+        NOME_FICHEIRO: `${codigo}_evidencia_demo.pdf`,
+        REQUISITO_MAPEADO: codigo,
+        URL_FICHEIRO: `/uploads/simulacao/${codigo}_evidencia_demo.pdf`
+      });
+    }
+  }
+
+  return pedido;
+};
+
+const atribuirBadgeDemo = async ({ consultor, utilizador, badge, data, motivo }) => {
+  const expiracao = calcularExpiracaoSeed(badge, data);
+
+  await ConsultorBadge.create({
+    ID_CONSULTOR: consultor.ID_CONSULTOR,
+    ID_BADGE: badge.ID_BADGE,
+    DATA_ATRIBUICAO_BADGE: data,
+    MOTIVO_ATRIBUICAO: motivo,
+    DATA_EXPIRACAO: expiracao,
+    LINK_UNICO_BADGE: `SFT-${consultor.ID_CONSULTOR}-${badge.ID_BADGE}-${data.getFullYear()}${String(data.getMonth() + 1).padStart(2, '0')}`,
+    STATUS_GALERIA_PUBLICA: true
+  });
+
+  await HistoricoPontuacao.create({
+    ID_UTILIZADOR: utilizador.ID_UTILIZADOR,
+    DATA_ATRIBUICAO: data,
+    PONTOS_OBTIDOS: badge.PONTOS_BADGE,
+    ORIGEM_PONTOS: `Badge: ${badge.NOME_BADGE}`
+  });
+
+  return Number(badge.PONTOS_BADGE) || 0;
+};
+
+const atribuirMarcoDemo = async ({ consultor, utilizador, marco, data }) => {
+  await MarcoConsultor.create({
+    ID_CONSULTOR: consultor.ID_CONSULTOR,
+    ID_MARCO: marco.ID_MARCO,
+    DATA_CONQUISTA: data
+  });
+
+  await HistoricoPontuacao.create({
+    ID_UTILIZADOR: utilizador.ID_UTILIZADOR,
+    DATA_ATRIBUICAO: data,
+    PONTOS_OBTIDOS: marco.PONTOS_EXTRA,
+    ORIGEM_PONTOS: `Conquista Especial: ${marco.TITULO_MARCO}`
+  });
+
+  return Number(marco.PONTOS_EXTRA) || 0;
+};
+
+const criarDemoUtilizadoresAdicionais = async ({ contexto, adicionais, marcos, talentPrincipal, sllHybrid }) => {
+  const porTituloMarco = Object.fromEntries(marcos.map(m => [m.TITULO_MARCO, m]));
+  const totalPorConsultor = new Map();
+  const somar = (consultor, pontos) => totalPorConsultor.set(
+    consultor.ID_CONSULTOR,
+    (totalPorConsultor.get(consultor.ID_CONSULTOR) || 0) + pontos
+  );
+
+  const { hugo, sofia, marta } = adicionais;
+  const dataHugoA = dataRelativa({ meses: -5, dias: -8 });
+  const dataHugoB = dataRelativa({ meses: -3, dias: -3 });
+  const dataSofiaA = dataRelativa({ meses: -4, dias: -14 });
+  const dataSofiaB = dataRelativa({ meses: -2, dias: -7 });
+  const dataMartaA = dataRelativa({ meses: -6, dias: -5 });
+  const dataMartaB = dataRelativa({ meses: -1, dias: -12 });
+  const dataMartaC = dataRelativa({ dias: -12 });
+
+  const dadosAceites = [
+    { pessoa: hugo, badge: contexto.devops.badges.A, data: dataHugoA, tm: talentPrincipal, sll: hugo, motivo: 'Atribuído por candidatura aceite pelo SLL de Application Operations.' },
+    { pessoa: hugo, badge: contexto.lowcode.badges.A, data: dataHugoB, tm: marta, sll: sllHybrid, motivo: 'Badge obtido numa Service Line externa.' },
+    { pessoa: sofia, badge: contexto.talent.badges.A, data: dataSofiaA, tm: talentPrincipal, sll: marta, motivo: 'Atribuído por candidatura aceite na área Talent Management.' },
+    { pessoa: sofia, badge: contexto.devops.badges.B, data: dataSofiaB, tm: marta, sll: hugo, motivo: 'Badge obtido fora da Service Line principal da consultora.' },
+    { pessoa: marta, badge: contexto.talent.badges.A, data: dataMartaA, tm: sofia, sll: marta, motivo: 'Atribuído por candidatura aceite.' },
+    { pessoa: marta, badge: contexto.lowcode.badges.B, data: dataMartaB, tm: sofia, sll: sllHybrid, motivo: 'Badge obtido em Hybrid Cloud.' },
+    { pessoa: marta, badge: contexto.talent.badges.D, data: dataMartaC, tm: sofia, sll: marta, motivo: 'Badge de validade curta para testar renovação.' }
+  ];
+
+  for (const item of dadosAceites) {
+    await criarPedidoDemo({
+      consultorUser: item.pessoa.utilizador,
+      badge: item.badge,
+      estado: 'Aceite',
+      data: item.data,
+      tmId: item.tm.perfisCriados.talentManager?.ID_TM || null,
+      sllId: item.sll.perfisCriados.sll?.ID_SLL || null,
+      decisorTmUserId: item.tm.utilizador.ID_UTILIZADOR,
+      decisorSllUserId: item.sll.utilizador.ID_UTILIZADOR
+    });
+
+    somar(item.pessoa.perfisCriados.consultor, await atribuirBadgeDemo({
+      consultor: item.pessoa.perfisCriados.consultor,
+      utilizador: item.pessoa.utilizador,
+      badge: item.badge,
+      data: addDays(item.data, 2),
+      motivo: item.motivo
+    }));
+  }
+
+  await criarPedidoDemo({
+    consultorUser: hugo.utilizador,
+    badge: contexto.devops.badges.C,
+    estado: 'Recusado',
+    data: dataRelativa({ meses: -2, dias: -1 }),
+    tmId: talentPrincipal.perfisCriados.talentManager.ID_TM,
+    sllId: hugo.perfisCriados.sll.ID_SLL,
+    decisorTmUserId: talentPrincipal.utilizador.ID_UTILIZADOR,
+    decisorSllUserId: hugo.utilizador.ID_UTILIZADOR,
+    comentario: 'Faltou evidência de observabilidade e métricas de operação.'
+  });
+
+  await criarPedidoDemo({
+    consultorUser: sofia.utilizador,
+    badge: contexto.talent.badges.B,
+    estado: 'Recusado',
+    data: dataRelativa({ meses: -1, dias: -20 }),
+    tmId: talentPrincipal.perfisCriados.talentManager.ID_TM,
+    sllId: null,
+    decisorTmUserId: talentPrincipal.utilizador.ID_UTILIZADOR,
+    comentario: 'O comprovativo submetido não validava autonomia no processo.'
+  });
+
+  await criarPedidoDemo({
+    consultorUser: marta.utilizador,
+    badge: contexto.devops.badges.D,
+    estado: 'Rascunho',
+    data: dataRelativa({ dias: -18 }),
+    tmId: sofia.perfisCriados.talentManager.ID_TM,
+    sllId: hugo.perfisCriados.sll.ID_SLL,
+    decisorTmUserId: sofia.utilizador.ID_UTILIZADOR,
+    decisorSllUserId: hugo.utilizador.ID_UTILIZADOR,
+    comentario: 'Enviar evidência adicional sobre arquitetura do pipeline.'
+  });
+
+  await criarPedidoDemo({
+    consultorUser: hugo.utilizador,
+    badge: contexto.talent.badges.C,
+    estado: 'Em Análise SLL',
+    data: dataRelativa({ dias: -5 }),
+    tmId: sofia.perfisCriados.talentManager.ID_TM,
+    sllId: marta.perfisCriados.sll.ID_SLL,
+    decisorTmUserId: sofia.utilizador.ID_UTILIZADOR,
+    decisorSllUserId: null
+  });
+
+  await criarPedidoDemo({
+    consultorUser: sofia.utilizador,
+    badge: contexto.lowcode.badges.C,
+    estado: 'Pendente',
+    data: dataRelativa({ dias: -2 }),
+    tmId: null,
+    sllId: null,
+    decisorTmUserId: null,
+    decisorSllUserId: null
+  });
+
+  somar(hugo.perfisCriados.consultor, await atribuirMarcoDemo({
+    consultor: hugo.perfisCriados.consultor,
+    utilizador: hugo.utilizador,
+    marco: porTituloMarco['Trilogia Técnica'],
+    data: dataRelativa({ meses: -1, dias: -1 })
+  }));
+
+  somar(sofia.perfisCriados.consultor, await atribuirMarcoDemo({
+    consultor: sofia.perfisCriados.consultor,
+    utilizador: sofia.utilizador,
+    marco: porTituloMarco['Sprint de Certificação'],
+    data: dataRelativa({ dias: -22 })
+  }));
+
+  somar(marta.perfisCriados.consultor, await atribuirMarcoDemo({
+    consultor: marta.perfisCriados.consultor,
+    utilizador: marta.utilizador,
+    marco: porTituloMarco['Trilogia Técnica'],
+    data: dataRelativa({ dias: -9 })
+  }));
+
+  somar(marta.perfisCriados.consultor, await atribuirMarcoDemo({
+    consultor: marta.perfisCriados.consultor,
+    utilizador: marta.utilizador,
+    marco: porTituloMarco['Marco de 1500 Pontos'],
+    data: dataRelativa({ dias: -4 })
+  }));
+
+  for (const item of [hugo, sofia, marta]) {
+    const total = totalPorConsultor.get(item.perfisCriados.consultor.ID_CONSULTOR) || 0;
+    await item.perfisCriados.consultor.update({ PONTUACAO_TOTAL: total });
+  }
+
+  await ObjetivoTimeline.bulkCreate([
+    {
+      ID_UTILIZADOR: hugo.utilizador.ID_UTILIZADOR,
+      TITULO: 'Preparar badge DevSecOps Sénior',
+      DESCRICAO: 'Reunir evidências de observabilidade e melhoria operacional.',
+      DATA_OBJETIVO: dataRelativa({ meses: 1 }),
+      STATUS: 'Em Progresso',
+      DATA_CONCLUSAO: null,
+      ORIGEM: 'Service Line Leader',
+      TIPO_OBJETIVO: 'Badge'
+    },
+    {
+      ID_UTILIZADOR: sofia.utilizador.ID_UTILIZADOR,
+      TITULO: 'Concluir candidatura LowCode Sénior',
+      DESCRICAO: 'Validar evidências de projeto em Service Line externa.',
+      DATA_OBJETIVO: dataRelativa({ dias: 25 }),
+      STATUS: 'Em Progresso',
+      DATA_CONCLUSAO: null,
+      ORIGEM: 'Criado por mim',
+      TIPO_OBJETIVO: 'Certificação'
+    },
+    {
+      ID_UTILIZADOR: marta.utilizador.ID_UTILIZADOR,
+      TITULO: 'Mentoria interna de Talent Management',
+      DESCRICAO: 'Concluir sessão de partilha e documentação final.',
+      DATA_OBJETIVO: dataRelativa({ dias: -10 }),
+      STATUS: 'Concluído',
+      DATA_CONCLUSAO: dataRelativa({ dias: -11 }),
+      ORIGEM: 'Service Line Leader',
+      TIPO_OBJETIVO: 'Mentoria'
+    }
+  ]);
+
+  await Notificacao.bulkCreate([
+    {
+      ID_UTILIZADOR: hugo.utilizador.ID_UTILIZADOR,
+      TITULO_NOTIFICACAO: 'Pedido em validação final',
+      MENSAGEM_NOTIFICACAO: 'A candidatura ao badge Talent Management - Sénior aguarda decisão do Service Line Leader.',
+      DATA_ENVIO_NOTIFICACAO: dataRelativa({ dias: -4 }),
+      ESTADO_LIDO: false,
+      TIPO_NOTIFICACAO: 'validacao'
+    },
+    {
+      ID_UTILIZADOR: sofia.utilizador.ID_UTILIZADOR,
+      TITULO_NOTIFICACAO: 'Nova candidatura pendente',
+      MENSAGEM_NOTIFICACAO: 'Existe uma candidatura recente ao badge LowCode Sénior para acompanhar no histórico.',
+      DATA_ENVIO_NOTIFICACAO: dataRelativa({ dias: -2 }),
+      ESTADO_LIDO: false,
+      TIPO_NOTIFICACAO: 'pedido'
+    },
+    {
+      ID_UTILIZADOR: marta.utilizador.ID_UTILIZADOR,
+      TITULO_NOTIFICACAO: 'Badge próximo da expiração',
+      MENSAGEM_NOTIFICACAO: 'O badge Talent Management - Especialista tem validade curta e permite testar o fluxo de renovação.',
+      DATA_ENVIO_NOTIFICACAO: dataRelativa({ dias: -1 }),
+      ESTADO_LIDO: false,
+      TIPO_NOTIFICACAO: 'expiracao'
+    }
+  ]);
+};
+
 async function seedDatabase() {
   const isSqlite = sequelize.getDialect() === 'sqlite';
   console.log(`[Seed] A inicializar base de dados limpa (${sequelize.getDialect()})...`);
@@ -402,6 +784,7 @@ async function seedDatabase() {
       });
 
       const niveis = {};
+      const badges = {};
       for (const nivel of niveisBase) {
         const nivelObj = await Nivel.create({
           ID_AREA: area.ID_AREA,
@@ -422,7 +805,7 @@ async function seedDatabase() {
           });
         }
 
-        await criarBadgeNormal({
+        badges[nivel.letra] = await criarBadgeNormal({
           item,
           areaObj: area,
           nivelObj,
@@ -432,45 +815,46 @@ async function seedDatabase() {
         });
       }
 
-      contexto[item.chave] = { ...item, serviceLineObj: serviceLine, areaObj: area, niveis };
+      contexto[item.chave] = { ...item, serviceLineObj: serviceLine, areaObj: area, niveis, badges };
     }
 
-    await criarBadgePremium({
+    const marcos = [];
+    marcos.push(await criarBadgePremium({
       titulo: 'Trilogia Técnica',
       descricao: 'Reconhece consultores que já conquistaram três badges normais na plataforma, demonstrando consistência na evolução técnica.',
       pontos: 250,
       tipo: 'TOTAL_BADGES',
       param1: 3
-    });
-    await criarBadgePremium({
+    }));
+    marcos.push(await criarBadgePremium({
       titulo: 'Sprint de Certificação',
       descricao: 'Valoriza consultores que mantêm ritmo de evolução e conseguem obter dois badges aprovados num intervalo curto.',
       pontos: 300,
       tipo: 'BADGES_DIAS',
       param1: 2,
       param2: 90
-    });
-    await criarBadgePremium({
+    }));
+    marcos.push(await criarBadgePremium({
       titulo: 'Marco de 1500 Pontos',
       descricao: 'Distingue consultores que acumulam uma pontuação relevante através de badges normais e evolução continuada.',
       pontos: 450,
       tipo: 'TOTAL_PONTOS',
       param1: 1500
-    });
-    await criarBadgePremium({
+    }));
+    marcos.push(await criarBadgePremium({
       titulo: 'Melhor Consultor de 2026',
       descricao: 'Prémio anual atribuído ao consultor com maior pontuação conquistada durante o ano civil de 2026.',
       pontos: 750,
       tipo: 'MELHOR_ANO',
       param1: 2026
-    });
-    await criarBadgePremium({
+    }));
+    marcos.push(await criarBadgePremium({
       titulo: 'Destaque do Próximo Trimestre',
       descricao: 'Reconhece o consultor com melhor desempenho em pontos durante os próximos três meses consecutivos.',
       pontos: 600,
       tipo: 'MELHOR_MESES',
       param1: 3
-    });
+    }));
 
     const utilizadores = [];
     const criarPessoa = async ({ nome, email, perfis, ctx, cargoSll }) => {
@@ -499,46 +883,57 @@ async function seedDatabase() {
       ctx: contexto.lowcode
     });
 
-    await criarPessoa({
+    const talentPrincipal = await criarPessoa({
       nome: 'Talent Manager Softinsa',
       email: 'talentmanager34@gmail.com',
       perfis: ['Talent Manager'],
       ctx: null
     });
 
-    const { perfisCriados: hybridSllPerfis } = await criarPessoa({
+    const sllHybrid = await criarPessoa({
       nome: 'SLL Hybrid Cloud',
       email: 'sllhybridcloud@gmail.com',
       perfis: ['Service Line Leader'],
       ctx: contexto.lowcode,
       cargoSll: 'Service Line Leader - Hybrid Cloud'
     });
+    const { perfisCriados: hybridSllPerfis } = sllHybrid;
     await contexto.lowcode.serviceLineObj.update({ ID_SLL: hybridSllPerfis.sll.ID_SLL });
 
-    const { perfisCriados: appOpsPerfis } = await criarPessoa({
+    const hugo = await criarPessoa({
       nome: 'Hugo Application Operations',
-      email: 'hugo.appops@softinsa.local',
+      email: 'hugo.appops@softinsa.pt',
       perfis: ['Consultor', 'Service Line Leader'],
       ctx: contexto.devops,
       cargoSll: 'Service Line Leader - Application Operations'
     });
+    const { perfisCriados: appOpsPerfis } = hugo;
     await contexto.devops.serviceLineObj.update({ ID_SLL: appOpsPerfis.sll.ID_SLL });
 
-    await criarPessoa({
+    const sofia = await criarPessoa({
       nome: 'Sofia Talent Consultant',
-      email: 'sofia.talent@softinsa.local',
+      email: 'sofia.talent@softinsa.pt',
       perfis: ['Consultor', 'Talent Manager'],
       ctx: contexto.talent
     });
 
-    const { perfisCriados: talentSllPerfis } = await criarPessoa({
+    const marta = await criarPessoa({
       nome: 'Marta Talent Lead',
-      email: 'marta.talent.lead@softinsa.local',
+      email: 'marta.talent.lead@softinsa.pt',
       perfis: ['Consultor', 'Talent Manager', 'Service Line Leader'],
       ctx: contexto.talent,
       cargoSll: 'Service Line Leader - Sourcing & Talent Management'
     });
+    const { perfisCriados: talentSllPerfis } = marta;
     await contexto.talent.serviceLineObj.update({ ID_SLL: talentSllPerfis.sll.ID_SLL });
+
+    await criarDemoUtilizadoresAdicionais({
+      contexto,
+      adicionais: { hugo, sofia, marta },
+      marcos,
+      talentPrincipal,
+      sllHybrid
+    });
 
     await LogAtividadeSistema.create({
       ID_UTILIZADOR: adminUser.ID_UTILIZADOR,
