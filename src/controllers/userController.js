@@ -121,12 +121,19 @@ controllers.login = async (req, res) => {
             return res.status(401).json({ success: false, message: "Dados de autenticação inválidos." });
         }
 
-        // Verificar se a conta está pendente
+        // Só contas ativas podem autenticar. Contas pendentes, recusadas ou inativas
+        // não devem gerar token nem contar como acesso.
         if (user.ESTADO_CONTA_UTILIZADOR === 'Pendente') {
             return res.status(403).json({ success: false, message: "A sua conta ainda se encontra a aguardar aprovação por um Administrador." });
         }
+        if (user.ESTADO_CONTA_UTILIZADOR === 'Recusado') {
+            return res.status(401).json({ success: false, message: "Dados de autenticação inválidos." });
+        }
         if (user.ESTADO_CONTA_UTILIZADOR === 'Inativo') {
             return res.status(403).json({ success: false, message: "A sua conta encontra-se desativada." });
+        }
+        if (user.ESTADO_CONTA_UTILIZADOR !== 'Ativo') {
+            return res.status(401).json({ success: false, message: "Dados de autenticação inválidos." });
         }
         
         // Gerar o JWT Token com validade de 1 hora
