@@ -936,8 +936,18 @@ controllers.tomarDecisaoSLL = async (req, res) => {
         if (utilizador) {
             const titulos = { Aceite: 'Badge Atribuído', Recusado: 'Candidatura Rejeitada', Rascunho: 'Candidatura Devolvida para Correção' };
             let mensagem = novoEstado === 'Aceite'
-                ? `A candidatura ao badge "${nomeBadge}" foi aceite por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`
-                : `A candidatura ao badge "${nomeBadge}" foi rejeitada por ${nomeAvaliadorSLL} (Service Line Leader). Mensagem: ${mensagemAvaliador}`;
+                ? [
+                    `Parabéns, obteve o badge "${nomeBadge}"!`,
+                    `A sua candidatura foi aceite por ${nomeAvaliadorSLL} (Service Line Leader).`,
+                    `Mensagem: ${mensagemAvaliador}`,
+                    'Para consultar o badge obtido, aceda a Meus Badges.',
+                    'A partir dessa página pode ver os detalhes, descarregar o certificado, copiar o link público de validação e partilhar a conquista no LinkedIn.'
+                ].join('\n\n')
+                : [
+                    `A candidatura ao badge "${nomeBadge}" foi rejeitada por ${nomeAvaliadorSLL} (Service Line Leader).`,
+                    `Mensagem: ${mensagemAvaliador}`,
+                    'Pode consultar o histórico do pedido para rever a decisão e preparar uma nova candidatura quando fizer sentido.'
+                ].join('\n\n');
             if (novoEstado === 'Rascunho') {
                 mensagem = [
                     `A candidatura ao badge "${nomeBadge}" foi enviada de volta para correção por ${nomeAvaliadorSLL} (Service Line Leader).`,

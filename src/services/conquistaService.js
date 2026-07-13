@@ -5,6 +5,8 @@ const ConsultorBadge = require('../models/ConsultorBadge');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const pushService = require('./pushService');
+const Utilizador = require('../models/Utilizador');
+const mailer = require('../config/mailer');
 
 async function avaliarConquistasConsultor(consultor) {
     const marcos = await MarcoConquista.findAll();
@@ -59,14 +61,35 @@ async function avaliarConquistasConsultor(consultor) {
             DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${marco.TITULO_MARCO}`,
             DATA_HORA_ATIVIDADE: new Date()
         });
+        const mensagemPremium = [
+            `Parabéns, obteve a conquista especial "${marco.TITULO_MARCO}"!`,
+            'Esta conquista premium foi atribuída automaticamente por cumprir a regra definida na plataforma.',
+            `Pontos bónus adicionados: +${bonus}.`,
+            'Para consultar esta conquista, aceda a Conquistas Especiais.',
+            'As conquistas especiais aparecem com destaque dourado e podem ser consultadas, partilhadas e validadas através da página pública.'
+        ].join('\n\n');
         await pushService.sendPush(
             consultor.ID_UTILIZADOR,
             'success',
             'Novo Badge Premium Obtido',
-            `Parabéns! Ganhou o badge premium "${marco.TITULO_MARCO}" e ${bonus} pontos.`,
+            mensagemPremium,
             'badges',
             'Consultor'
         );
+        try {
+            const utilizador = await Utilizador.findByPk(consultor.ID_UTILIZADOR);
+            if (utilizador) {
+                await mailer.sendEmail(
+                    utilizador.EMAIL_UTILIZADOR,
+                    'Novo Badge Premium Obtido - Plataforma de Badges Softinsa',
+                    `<h2>Novo Badge Premium Obtido</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>${mensagemPremium.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
+                    'badges',
+                    utilizador.PERFIL_UTILIZADOR
+                );
+            }
+        } catch (mailErr) {
+            console.error('Falha ao enviar email de badge premium obtido:', mailErr);
+        }
     }
 
     if (pontosAtuais !== consultor.PONTUACAO_TOTAL) {

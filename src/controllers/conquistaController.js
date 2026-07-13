@@ -89,14 +89,21 @@ const atribuirMarcoAoConsultor = async (marco, consultor, idUtilizador) => {
         ORIGEM_PONTOS: `Badge premium: ${marco.TITULO_MARCO}`
     });
     await LogAtividadeSistema.create({ ID_UTILIZADOR: idUtilizador, TIPO_ATIVIDADE: 'Badge Premium Obtido', DETALHES_ATIVIDADE: `Ganhou automaticamente o badge premium ${marco.TITULO_MARCO}`, DATA_HORA_ATIVIDADE: new Date() });
-    pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', `Parabéns! Ganhou o badge premium "${marco.TITULO_MARCO}".`, 'badges', 'Consultor');
+    const mensagemPremium = [
+        `Parabéns, obteve a conquista especial "${marco.TITULO_MARCO}"!`,
+        `Esta conquista premium foi atribuída automaticamente por cumprir a regra definida na plataforma.`,
+        `Pontos bónus adicionados: +${marco.PONTOS_EXTRA || 0}.`,
+        'Para consultar esta conquista, aceda a Conquistas Especiais.',
+        'As conquistas especiais aparecem com destaque dourado e podem ser consultadas, partilhadas e validadas através da página pública.'
+    ].join('\n\n');
+    pushService.sendPush(idUtilizador, 'success', 'Novo Badge Premium Obtido', mensagemPremium, 'badges', 'Consultor');
     try {
         const utilizador = await Utilizador.findByPk(idUtilizador);
         if (utilizador) {
             await mailer.sendEmail(
                 utilizador.EMAIL_UTILIZADOR,
                 'Novo Badge Premium Obtido - Plataforma de Badges Softinsa',
-                `<h2>Novo Badge Premium Obtido</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p><p>Parabéns! Ganhou automaticamente o badge premium <b>${marco.TITULO_MARCO}</b>.</p><p>Foram adicionados ${marco.PONTOS_EXTRA || 0} pontos à sua conta.</p>`,
+                `<h2>Novo Badge Premium Obtido</h2><p>Olá, ${utilizador.NOME_COMPLETO_UTILIZADOR}.</p>${mensagemPremium.split('\n\n').map(paragrafo => `<p>${paragrafo}</p>`).join('')}`,
                 'badges',
                 utilizador.PERFIL_UTILIZADOR
             );
