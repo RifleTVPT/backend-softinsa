@@ -1,4 +1,4 @@
-const Consultor = require('../models/Consultor');
+﻿const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
@@ -156,7 +156,7 @@ controllers.getDashboardConsultor = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO DASHBOARD:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -307,7 +307,7 @@ controllers.getEstatisticasDetalhadas = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO DETALHADAS:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -456,7 +456,7 @@ controllers.getGamificacaoTM = async (req, res) => {
         });
     } catch (error) {
         console.error("Erro Gamificacao TM:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -601,7 +601,7 @@ controllers.getGamificacaoSLL = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO GAMIFICACAO SLL:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -838,7 +838,7 @@ controllers.getMetricasGlobaisAdmin = async (req, res) => {
         });
     } catch(e) {
         console.error("ERRO METRICAS ADMIN:", e);
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

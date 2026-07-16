@@ -1,4 +1,4 @@
-const ObjetivoTimeline = require('../models/ObjetivoTimeline');
+﻿const ObjetivoTimeline = require('../models/ObjetivoTimeline');
 const Utilizador = require('../models/Utilizador');
 
 const controllers = {};
@@ -38,7 +38,7 @@ controllers.getObjetivosConsultor = async (req, res) => {
 
         res.json({ success: true, data: dadosFormatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -84,7 +84,7 @@ controllers.criarObjetivo = async (req, res) => {
 
         res.json({ success: true, message: "Objetivo adicionado com sucesso!", data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -99,7 +99,7 @@ controllers.marcarConcluido = async (req, res) => {
 
         res.json({ success: true, message: "Objetivo concluído com sucesso!" });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

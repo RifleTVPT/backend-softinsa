@@ -1,4 +1,4 @@
-const MarcoConquista = require('../models/MarcoConquista');
+﻿const MarcoConquista = require('../models/MarcoConquista');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const Consultor = require('../models/Consultor');
@@ -143,7 +143,7 @@ controllers.listarConquistas = async (req, res) => {
         }));
         res.json({ success: true, data: formatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -168,7 +168,7 @@ controllers.getDetalhesConquista = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -212,7 +212,7 @@ controllers.criarConquista = async (req, res) => {
 
         res.json({ success: true, data: novo, message: 'Conquista Especial criada com sucesso!' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -238,7 +238,7 @@ controllers.eliminarConquista = async (req, res) => {
 
         res.json({ success: true, message: 'Conquista eliminada com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -262,7 +262,7 @@ controllers.processarRankings = async (req, res) => {
         res.json({ success: true, message: `Rankings processados com sucesso. ${premiados} novas conquistas atribuídas.` });
     } catch (error) {
         console.error('ERRO PROCESSAR RANKINGS:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

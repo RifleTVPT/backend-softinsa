@@ -1,4 +1,4 @@
-const LearningPath = require('../models/LearningPath');
+﻿const LearningPath = require('../models/LearningPath');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const ServiceLine = require('../models/ServiceLine');
 const Area = require('../models/Area');
@@ -96,7 +96,7 @@ controllers.getEstruturaCompleta = async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -114,7 +114,7 @@ controllers.criarLearningPath = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Criação Learning Path', DETALHES_ATIVIDADE: `Criou novo Learning Path: ${nome}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -139,7 +139,7 @@ controllers.criarServiceLine = async (req, res) => {
 
         res.json({ success: true, data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -156,7 +156,7 @@ controllers.criarArea = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Criação Área', DETALHES_ATIVIDADE: `Criou nova Área: ${nome}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, data: nova });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -182,7 +182,7 @@ controllers.adicionarNivelArea = async (req, res) => {
 
         res.json({ success: true, data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -200,7 +200,7 @@ controllers.adicionarRequisito = async (req, res) => {
 
         res.json({ success: true, data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -211,7 +211,7 @@ controllers.eliminarRequisito = async (req, res) => {
         await RequisitoPadrao.destroy({ where: { ID_REQUISITO_PADRAO: id } });
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -244,7 +244,7 @@ controllers.eliminarNivelMaisAlto = async (req, res) => {
         
         res.json({ success: true, data: nivelMaisAlto.NOME_NIVEL });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -260,7 +260,7 @@ controllers.eliminarLearningPath = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Eliminação Learning Path', DETALHES_ATIVIDADE: `Eliminou Learning Path ID: ${id}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, message: 'Learning Path eliminado com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -277,7 +277,7 @@ controllers.eliminarServiceLine = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Eliminação Service Line', DETALHES_ATIVIDADE: `Eliminou Service Line ID: ${id}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, message: 'Service Line eliminada com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -293,7 +293,7 @@ controllers.eliminarArea = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Eliminação Área', DETALHES_ATIVIDADE: `Eliminou Área ID: ${id}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, message: 'Área eliminada com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -308,7 +308,7 @@ controllers.editarLearningPath = async (req, res) => {
         }, { where: { ID_LEARNING_PATH: id } });
         res.json({ success: true, message: 'Learning Path atualizado com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -335,7 +335,7 @@ controllers.editarServiceLine = async (req, res) => {
 
         res.json({ success: true, message: 'Service Line atualizada com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -350,7 +350,7 @@ controllers.editarArea = async (req, res) => {
         }, { where: { ID_AREA: id } });
         res.json({ success: true, message: 'Área atualizada com sucesso.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

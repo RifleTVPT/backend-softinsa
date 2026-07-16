@@ -1,4 +1,4 @@
-const Utilizador = require('../models/Utilizador');
+﻿const Utilizador = require('../models/Utilizador');
 const Consultor = require('../models/Consultor');
 const TalentManager = require('../models/TalentManager');
 const ServiceLineLeader = require('../models/ServiceLineLeader');
@@ -71,7 +71,7 @@ controllers.getTodosUtilizadores = async (req, res) => {
         res.json({ success: true, data: listaFormatada });
     } catch (error) {
         console.error("ERRO LISTA USERS:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -141,7 +141,7 @@ controllers.criarUtilizador = async (req, res) => {
         res.status(201).json({ success: true, message: "Utilizador criado com sucesso!" });
     } catch (error) {
         console.error("ERRO CRIAR USER:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -207,7 +207,7 @@ controllers.getPerfilUtilizador = async (req, res) => {
 
         res.json({ success: true, data: userData });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -368,7 +368,7 @@ controllers.atualizarUtilizador = async (req, res) => {
         });
         res.json({ success: true, message: "Perfil atualizado!" });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -397,7 +397,7 @@ controllers.desativarUtilizador = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Desativação de Conta', DETALHES_ATIVIDADE: `Desativou a conta de ${u.NOME_COMPLETO_UTILIZADOR}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, message: "Utilizador desativado com sucesso." });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -426,7 +426,7 @@ controllers.ativarUtilizador = async (req, res) => {
         await LogAtividadeSistema.create({ ID_UTILIZADOR: req.userId || 1, TIPO_ATIVIDADE: 'Ativação de Conta', DETALHES_ATIVIDADE: `Ativou a conta de ${u.NOME_COMPLETO_UTILIZADOR}`, DATA_HORA_ATIVIDADE: new Date() });
         res.json({ success: true, message: "Utilizador ativado com sucesso." });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -454,7 +454,7 @@ controllers.getPendentesRegisto = async (req, res) => {
 
         res.json({ success: true, data: listaFormatada });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -480,7 +480,7 @@ controllers.getDetalhesRegisto = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -623,7 +623,7 @@ controllers.aceitarRegisto = async (req, res) => {
         res.json({ success: true, message: "Registo aceite com sucesso. O utilizador já pode fazer login." });
     } catch (error) {
         console.error("Erro ao aceitar registo:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -663,7 +663,7 @@ controllers.recusarRegisto = async (req, res) => {
         res.json({ success: true, message: "Registo recusado." });
     } catch (error) {
         console.error("Erro ao recusar registo:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -708,7 +708,7 @@ controllers.getLogAtividades = async (req, res) => {
         res.json({ success: true, data: dadosFormatados });
     } catch (error) {
         console.error("ERRO LISTA LOGS:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

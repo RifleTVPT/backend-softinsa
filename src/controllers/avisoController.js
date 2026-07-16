@@ -1,4 +1,4 @@
-const AvisoGeral = require('../models/AvisoGeral');
+﻿const AvisoGeral = require('../models/AvisoGeral');
 const Utilizador = require('../models/Utilizador');
 const mailer = require('../config/mailer');
 const pushService = require('../services/pushService');
@@ -55,7 +55,7 @@ controllers.getAllAvisos = async (req, res) => {
         }));
         res.json({ success: true, data: mapAvisos });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -106,7 +106,7 @@ controllers.createAviso = async (req, res) => {
 
         res.json({ success: true, data: novo });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -128,7 +128,7 @@ controllers.updateAviso = async (req, res) => {
 
         res.json({ success: true, data: aviso });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -143,7 +143,7 @@ controllers.toggleStatus = async (req, res) => {
 
         res.json({ success: true, data: newStatus });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -156,7 +156,7 @@ controllers.eliminarAviso = async (req, res) => {
         await aviso.destroy();
         res.json({ success: true, message: 'Aviso eliminado com sucesso' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

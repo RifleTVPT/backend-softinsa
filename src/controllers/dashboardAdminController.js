@@ -1,4 +1,4 @@
-const Utilizador = require('../models/Utilizador');
+﻿const Utilizador = require('../models/Utilizador');
 const Pedido = require('../models/Pedido');
 const Badge = require('../models/Badge');
 const Consultor = require('../models/Consultor');
@@ -182,7 +182,7 @@ controllers.getDashboardAdminData = async (req, res) => {
         });
     } catch (error) {
         console.error("ERRO DASHBOARD ADMIN:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

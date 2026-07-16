@@ -1,4 +1,4 @@
-const Utilizador = require('../models/Utilizador');
+﻿const Utilizador = require('../models/Utilizador');
 const Consultor = require('../models/Consultor');
 const PreferenciasUtilizador = require('../models/PreferenciasUtilizador');
 const EstatisticasAcesso = require('../models/EstatisticasAcesso');
@@ -188,7 +188,13 @@ controllers.register = async (req, res) => {
         if (error.name === 'SequelizeUniqueConstraintError') {
             msg = "Este email já se encontra registado no sistema.";
         }
-        res.status(500).json({ success: false, message: msg, details: error.errors?.map(e => e.message) });
+        console.error('Erro ao submeter registo:', error);
+        res.status(500).json({
+            success: false,
+            message: msg === error.message
+                ? 'Não foi possível submeter o registo neste momento. Tente novamente mais tarde.'
+                : msg
+        });
     }
 };
 
@@ -265,7 +271,7 @@ controllers.login = async (req, res) => {
             firstAccess: user.IS_PRIMEIRO_ACESSO
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -314,7 +320,7 @@ controllers.getConfiguracoes = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -405,7 +411,7 @@ controllers.updateConfiguracoes = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -442,7 +448,7 @@ controllers.mudarPassword = async (req, res) => {
 
         res.json({ success: true, message: "Password alterada com sucesso!" });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -474,7 +480,7 @@ controllers.uploadAvatar = async (req, res) => {
 
         res.json({ success: true, message: "Foto atualizada!", avatarUrl: fileUrl, data: { avatar: fileUrl } });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -495,7 +501,7 @@ controllers.verificarEmailRecuperacao = async (req, res) => {
         }
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -537,7 +543,7 @@ controllers.recuperarPassword = async (req, res) => {
 
         res.json({ success: true, message: "Password redefinida com sucesso." });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -553,7 +559,7 @@ controllers.registarFcmToken = async (req, res) => {
         );
         res.json({ success: true, message: 'Dispositivo registado para notificações push.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

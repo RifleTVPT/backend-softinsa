@@ -1,4 +1,4 @@
-const Consultor = require('../models/Consultor');
+﻿const Consultor = require('../models/Consultor');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
 const Requisito = require('../models/Requisito');
@@ -175,7 +175,7 @@ controllers.getMeusBadges = async (req, res) => {
 
         res.json({ success: true, data: badgesFormatados, userSl: consultorSL });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -283,7 +283,7 @@ controllers.getDetalhesBadgeObtido = async (req, res) => {
             } 
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -364,7 +364,7 @@ controllers.getVerificacaoPublica = async (req, res) => {
             } 
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 }
 
@@ -644,7 +644,7 @@ controllers.getGaleriaPublica = async (req, res) => {
             } 
         });
     } catch(error) {
-         res.status(500).json({ success: false, message: error.message });
+         res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 }
 
@@ -703,7 +703,7 @@ controllers.getVerificacaoEspecialPublica = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -933,6 +933,6 @@ controllers.downloadCertificado = async (req, res) => {
 
     } catch (error) {
         console.error("Erro PDF:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };

@@ -1,4 +1,4 @@
-
+﻿
 const Pedido = require('../models/Pedido');
 const sequelize = require('../config/database');
 const HistoricoPedido = require('../models/HistoricoPedido');
@@ -447,7 +447,7 @@ controllers.getHistoricoConsultor = async (req, res) => {
 
         res.json({ success: true, data: dadosFormatados });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -514,7 +514,7 @@ controllers.getDetalhesPedido = async (req, res) => {
         
         res.json({ success: true, data: dataFormatada });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -572,7 +572,7 @@ controllers.renovarPedido = async (req, res) => {
             });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -605,7 +605,7 @@ controllers.getPendentesTM = async (req, res) => {
 
         res.json({ success: true, data, kpis: { aprovadosTotal, rejeitadosTotal } });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -656,7 +656,7 @@ controllers.getDetalhesAnalisarTM = async (req, res) => {
             }))
         }});
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -765,7 +765,7 @@ controllers.tomarDecisaoTM = async (req, res) => {
 
         res.json({ success: true, message: 'Decisão guardada', estado: novoEstado });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -832,7 +832,7 @@ controllers.getHistoricoTM = async (req, res) => {
         data.sort((a, b) => new Date(b.dataISO) - new Date(a.dataISO));
         res.json({ success: true, data });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -900,7 +900,7 @@ controllers.getPendentesSLL = async (req, res) => {
             }
         });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -1018,7 +1018,7 @@ controllers.tomarDecisaoSLL = async (req, res) => {
         }
         res.json({ success: true, message: 'Decisão SLL guardada', estado: novoEstado });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -1099,7 +1099,7 @@ controllers.getHistoricoSLL = async (req, res) => {
         data.sort((a, b) => new Date(b.dataISO) - new Date(a.dataISO));
         res.json({ success: true, data });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -1137,7 +1137,7 @@ controllers.getTodosPedidosAdmin = async (req, res) => {
         
         res.json({ success: true, data });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -1165,7 +1165,7 @@ controllers.eliminarPedidoAdmin = async (req, res) => {
         );
         res.json({ success: true, message: 'Pedido eliminado' });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

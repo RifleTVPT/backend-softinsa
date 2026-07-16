@@ -1,4 +1,4 @@
-const MarcoConquista = require('../models/MarcoConquista');
+﻿const MarcoConquista = require('../models/MarcoConquista');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const Consultor = require('../models/Consultor');
 const ConsultorBadge = require('../models/ConsultorBadge');
@@ -292,7 +292,7 @@ controllers.getConquistasConsultor = async (req, res) => {
         res.json({ success: true, obtidas, disponiveis });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -422,7 +422,7 @@ controllers.getDetalhesConquista = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -442,7 +442,7 @@ controllers.getAllConquistasGlobal = async (req, res) => {
         }));
         res.json({ success: true, data: formatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -469,7 +469,7 @@ controllers.getDetalhesConquistaGlobal = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -600,7 +600,7 @@ controllers.downloadCertificadoConquista = async (req, res) => {
 
     } catch (error) {
         console.error("Erro PDF Conquista:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

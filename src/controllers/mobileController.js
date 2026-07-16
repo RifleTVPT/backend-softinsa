@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+﻿const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const fs = require('fs');
 const path = require('path');
@@ -174,7 +174,7 @@ controllers.sincronizarConsultor = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -371,7 +371,7 @@ controllers.receberPedidoMobile = async (req, res) => {
 
     } catch (error) {
         console.error("Erro na sincronização:", error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -446,7 +446,7 @@ controllers.sincronizarObjetivosOffline = async (req, res) => {
     } catch (error) {
         await t.rollback();
         console.error('Erro na sincronização de objetivos:', error);
-        res.status(500).json({ success: false, message: 'Erro interno na sincronização', error: error.message });
+        res.status(500).json({ success: false, message: 'Não foi possível sincronizar os dados neste momento. Tente novamente mais tarde.' });
     }
 };
 

@@ -1,4 +1,4 @@
-const Consultor = require('../models/Consultor');
+﻿const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
@@ -79,7 +79,7 @@ controllers.getListaConsultores = async (req, res) => {
         res.json({ success: true, data: lista });
     } catch (error) {
         console.error("ERRO GET LISTA CONSULTORES:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -260,7 +260,7 @@ controllers.getPerfilConsultor = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO GET PERFIL CONSULTOR:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

@@ -1,4 +1,4 @@
-const ConsultorBadge = require('../models/ConsultorBadge');
+﻿const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
 const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
@@ -85,7 +85,7 @@ controllers.getBadgesExpiracao = async (req, res) => {
 
         res.json({ success: true, data: dadosFormatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -127,7 +127,7 @@ controllers.notificarConsultor = async (req, res) => {
 
         res.json({ success: true, message: 'Notificação enviada com sucesso!' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

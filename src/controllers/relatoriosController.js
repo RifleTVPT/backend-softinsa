@@ -1,4 +1,4 @@
-const Pedido = require('../models/Pedido');
+﻿const Pedido = require('../models/Pedido');
 const Badge = require('../models/Badge');
 const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
@@ -262,7 +262,7 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
         res.json({ success: true, data: respostaDados });
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -552,7 +552,7 @@ controllers.gerarRelatorioConsultor = async (req, res) => {
         res.json({ success: true, data: dadosRelatorio });
     } catch (error) {
         console.error("ERRO GERAR RELATORIO TM:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -887,7 +887,7 @@ controllers.gerarRelatorioSLL = async (req, res) => {
         res.json({ success: true, data: dadosRelatorio });
     } catch (error) {
         console.error("ERRO RELATORIO SLL:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -1102,7 +1102,7 @@ controllers.gerarRelatorioAdmin = async (req, res) => {
         res.json({ success: true, data: dadosRelatorio });
     } catch (error) {
         console.error("ERRO GERAR RELATORIO ADMIN:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

@@ -1,4 +1,4 @@
-const ConfiguracoesSistema = require('../models/ConfiguracoesSistema');
+﻿const ConfiguracoesSistema = require('../models/ConfiguracoesSistema');
 const Utilizador = require('../models/Utilizador');
 const mailer = require('../config/mailer');
 
@@ -24,7 +24,7 @@ controllers.getConfiguracoes = async (req, res) => {
         res.json({ success: true, data });
     } catch (error) {
         console.error("ERRO GET CONFIGURAÇÕES:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -37,7 +37,7 @@ controllers.getRGPD = async (req, res) => {
         res.json({ success: true, data: { RGPD_TERMOS: config.RGPD_TERMOS, RGPD_POLITICAS: config.RGPD_POLITICAS } });
     } catch (error) {
         console.error("ERRO GET RGPD:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -69,7 +69,7 @@ controllers.updateConfiguracoes = async (req, res) => {
         res.json({ success: true, data: config, message: "Configurações atualizadas com sucesso." });
     } catch (error) {
         console.error("ERRO UPDATE CONFIGURAÇÕES:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -85,7 +85,15 @@ controllers.testarEmail = async (req, res) => {
             message: `Ligação SMTP validada. Foi enviado um email de teste para ${utilizador.EMAIL_UTILIZADOR}.`
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        console.error('Erro ao testar serviço de email:', error);
+        const mensagem = String(error.message || '');
+        const mensagemConhecida = /SMTP|Brevo|API|Key|host|porta|SSL|password|Autenticação|Timeout|timeout|ligação|servidor/i.test(mensagem);
+        res.status(400).json({
+            success: false,
+            message: mensagemConhecida
+                ? mensagem
+                : 'Não foi possível validar o serviço de email. Confirme as configurações e tente novamente.'
+        });
     }
 };
 

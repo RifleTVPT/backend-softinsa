@@ -1,4 +1,4 @@
-const Pedido = require('../models/Pedido');
+﻿const Pedido = require('../models/Pedido');
 const Badge = require('../models/Badge');
 const Consultor = require('../models/Consultor');
 const ConsultorBadge = require('../models/ConsultorBadge');
@@ -269,7 +269,7 @@ controllers.getDashboardTMData = async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

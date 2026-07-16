@@ -1,4 +1,4 @@
-//para a parte dos badges atribuidos do SLL
+﻿//para a parte dos badges atribuidos do SLL
 
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Consultor = require('../models/Consultor');
@@ -69,7 +69,7 @@ controllers.getBadgesAtribuidosSL = async (req, res) => {
 
         res.json({ success: true, data: formatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

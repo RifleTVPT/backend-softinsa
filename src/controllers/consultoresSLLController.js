@@ -1,4 +1,4 @@
-const Consultor = require('../models/Consultor');
+﻿const Consultor = require('../models/Consultor');
 const Utilizador = require('../models/Utilizador');
 const ConsultorBadge = require('../models/ConsultorBadge');
 const Badge = require('../models/Badge');
@@ -71,7 +71,7 @@ controllers.getListaConsultoresSL = async (req, res) => {
         res.json({ success: true, data: listaFinal });
     } catch (error) {
         console.error("ERRO GET LISTA SLL:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -245,7 +245,7 @@ controllers.getPerfilConsultorSL = async (req, res) => {
         });
     } catch (error) {
         console.error("ERRO GET PERFIL SLL:", error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

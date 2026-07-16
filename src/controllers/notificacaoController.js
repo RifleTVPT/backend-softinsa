@@ -1,4 +1,4 @@
-const Notificacao = require('../models/Notificacao');
+﻿const Notificacao = require('../models/Notificacao');
 
 const controllers = {};
 
@@ -26,7 +26,7 @@ controllers.getByUser = async (req, res) => {
 
         res.json({ success: true, data: formatadas });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -38,7 +38,7 @@ controllers.markAsRead = async (req, res) => {
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -50,7 +50,7 @@ controllers.markAllAsRead = async (req, res) => {
         );
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 

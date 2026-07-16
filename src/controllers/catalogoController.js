@@ -1,4 +1,4 @@
-const Badge = require('../models/Badge');
+﻿const Badge = require('../models/Badge');
 const Requisito = require('../models/Requisito');
 const Pedido = require('../models/Pedido');
 const Nivel = require('../models/Nivel');
@@ -89,7 +89,7 @@ controllers.getAllBadges = async (req, res) => {
 
         res.json({ success: true, data: badgesFormatados });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -183,7 +183,7 @@ controllers.getBadgeDetails = async (req, res) => {
 
         res.json({ success: true, data: badgeDetalhes });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -197,13 +197,13 @@ controllers.createBadge = async (req, res) => {
 
         // 1. Obter configurações do sistema
         let validadeMeses = 12;
-        let pontosFinal = pontos ? parseInt(pontos) : null;
+        let pontosFinal = pontos !== undefined && pontos !== null && pontos !== '' ? parseInt(pontos) : null;
         
         try {
             const config = await ConfiguracoesSistema.findByPk(1);
             if (config) {
                 validadeMeses = config.VALIDADE_MESES_PADRAO || 12;
-                if (!pontosFinal) {
+                if (pontosFinal === null || Number.isNaN(pontosFinal)) {
                     if (nivelId === 1) pontosFinal = config.PONTOS_DEFAULT_A;
                     else if (nivelId === 2) pontosFinal = config.PONTOS_DEFAULT_B;
                     else if (nivelId === 3) pontosFinal = config.PONTOS_DEFAULT_C;
@@ -214,7 +214,8 @@ controllers.createBadge = async (req, res) => {
             }
         } catch(e) { console.error("Erro ao ler Configurações:", e); }
 
-        if (!pontosFinal) pontosFinal = 150; // Fallback
+        if (pontosFinal === null || Number.isNaN(pontosFinal)) pontosFinal = 150; // Fallback
+        if (pontosFinal < 0) pontosFinal = 0; // Mínimo 0
         if (pontosFinal > 500) pontosFinal = 500; // Máximo 500
         // 2. Criar o Badge
         let urlImagemFinal = '/uploads/default-trophy.png';
@@ -290,7 +291,7 @@ controllers.createBadge = async (req, res) => {
 
         res.status(201).json({ success: true, data: novoBadge });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -510,7 +511,7 @@ controllers.candidatar = async (req, res) => {
         }
         res.status(201).json({ success: true, message: 'Candidatura submetida com sucesso!' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -600,7 +601,7 @@ controllers.saveRascunho = async (req, res) => {
         }
         res.json({ success: true, message: 'Rascunho guardado' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -632,7 +633,7 @@ controllers.getRascunho = async (req, res) => {
 
         res.json({ success: true, data });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -695,7 +696,7 @@ controllers.deleteBadge = async (req, res) => {
 
         res.json({ success: true, message: 'Badge eliminado com sucesso' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
@@ -796,7 +797,7 @@ controllers.updateBadge = async (req, res) => {
 
         res.json({ success: true, message: 'Badge atualizado com sucesso!', data: badge });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.' });
     }
 };
 
