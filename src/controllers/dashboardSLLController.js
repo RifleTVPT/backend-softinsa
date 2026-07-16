@@ -174,12 +174,13 @@ controllers.getDashboardSLLData = async (req, res) => {
         // Calculo da Taxa de Crescimento dos Badges
         const badgesMesPassado = dadosLinha[4] || 0;
         const badgesMesAtual = dadosLinha[5] || 0;
+        const limitarPercentagem = valor => Math.max(-100, Math.min(100, valor));
         let crescimentoBadges = '+0%';
         if (badgesMesPassado === 0 && badgesMesAtual > 0) {
             crescimentoBadges = '+100%';
         } else if (badgesMesPassado > 0) {
             const diff = badgesMesAtual - badgesMesPassado;
-            const perc = Math.round((diff / badgesMesPassado) * 100);
+            const perc = limitarPercentagem(Math.round((diff / badgesMesPassado) * 100));
             crescimentoBadges = (perc >= 0 ? '+' : '') + perc + '%';
         }
 
