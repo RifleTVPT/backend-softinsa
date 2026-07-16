@@ -14,6 +14,7 @@ const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const Area = require('../models/Area');
 const ServiceLine = require('../models/ServiceLine');
 const MarcoConsultor = require('../models/MarcoConsultor');
+const MarcoConquista = require('../models/MarcoConquista');
 const { Op } = require('sequelize');
 
 const controllers = {};
@@ -157,11 +158,15 @@ controllers.getPerfilUtilizador = async (req, res) => {
         let aprendizagens = [];
 
         if (u.PERFIL_UTILIZADOR && u.PERFIL_UTILIZADOR.includes('Consultor')) {
-            const totalBadges = await Badge.count();
+            const totalBadgesNormais = await Badge.count();
+            const totalBadgesPremium = await MarcoConquista.count();
+            const totalBadges = totalBadgesNormais + totalBadgesPremium;
             
             const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: id } });
             if (consultor) {
-                const obtainedBadges = await ConsultorBadge.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR } });
+                const obtainedBadgesNormais = await ConsultorBadge.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR } });
+                const obtainedBadgesPremium = await MarcoConsultor.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR } });
+                const obtainedBadges = obtainedBadgesNormais + obtainedBadgesPremium;
                 progressoSL = totalBadges > 0 ? Math.round((obtainedBadges / totalBadges) * 100) : 0;
 
                 const pedidos = await Pedido.findAll({
