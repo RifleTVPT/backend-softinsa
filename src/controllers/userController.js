@@ -3,6 +3,7 @@ const Consultor = require('../models/Consultor');
 const PreferenciasUtilizador = require('../models/PreferenciasUtilizador');
 const EstatisticasAcesso = require('../models/EstatisticasAcesso');
 const Area = require('../models/Area');
+const ServiceLine = require('../models/ServiceLine');
 const bcrypt = require('bcryptjs');
 const pushService = require('../services/pushService');
 const jwt = require('jsonwebtoken');
@@ -241,6 +242,10 @@ controllers.login = async (req, res) => {
             } else {
                 const sll = await require('../models/ServiceLineLeader').findOne({ where: { ID_UTILIZADOR: user.ID_UTILIZADOR } });
                 if (sll && sll.ID_SERVICE_LINE) idSL = sll.ID_SERVICE_LINE;
+                if (!idSL && String(user.PERFIL_UTILIZADOR || '').includes('Service Line Leader') && user.SL_REGISTO) {
+                    const slFallback = await ServiceLine.findOne({ where: { NOME_SERVICE_LINE: user.SL_REGISTO } });
+                    if (slFallback) idSL = slFallback.ID_SERVICE_LINE;
+                }
             }
 
             const dataHoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
