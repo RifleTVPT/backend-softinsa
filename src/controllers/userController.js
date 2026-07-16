@@ -233,7 +233,7 @@ controllers.login = async (req, res) => {
         try {
             // Admin e Talent Manager não pertencem a uma Service Line operacional no acesso.
             // Guardamos esses acessos no bucket global para não inflacionar a primeira SL.
-            let idSL = 0; 
+            let idSL = null;
             const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: user.ID_UTILIZADOR } });
             if (consultor && consultor.ID_AREA) {
                 const area = await Area.findByPk(consultor.ID_AREA);
