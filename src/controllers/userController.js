@@ -17,6 +17,14 @@ const { Op } = require('sequelize');
 const controllers = {};
 const passwordForte = password => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(String(password || ''));
 
+const sanitizarUtilizador = user => {
+    if (!user) return user;
+    const dados = typeof user.toJSON === 'function' ? user.toJSON() : { ...user };
+    delete dados.PASSWORD_UTILIZADOR;
+    delete dados.FCM_TOKEN;
+    return dados;
+};
+
 const enviarAvisoConta = async (user, titulo, mensagemHtml, mensagemPush = null) => {
     try {
         await mailer.sendEmail(user.EMAIL_UTILIZADOR, titulo, mensagemHtml, 'contas', user.PERFIL_UTILIZADOR);
@@ -124,7 +132,7 @@ controllers.register = async (req, res) => {
                 console.error("Aviso: Falha ao enviar email de novo pedido de registo.", mailErr);
             }
 
-            return res.status(201).json({ success: true, message: "Registo submetido com sucesso! A aguardar aprovação da administração.", data: emailExiste });
+            return res.status(201).json({ success: true, message: "Registo submetido com sucesso! A aguardar aprovação da administração.", data: sanitizarUtilizador(emailExiste) });
         }
         const novoUser = await Utilizador.create({
             NOME_COMPLETO_UTILIZADOR: nome,
@@ -174,7 +182,7 @@ controllers.register = async (req, res) => {
             console.error("Aviso: Falha ao enviar email de registo.", mailErr);
         }
 
-        res.status(201).json({ success: true, message: "Registo submetido com sucesso! A aguardar aprovação da administração.", data: novoUser });
+        res.status(201).json({ success: true, message: "Registo submetido com sucesso! A aguardar aprovação da administração.", data: sanitizarUtilizador(novoUser) });
     } catch (error) {
         let msg = error.message;
         if (error.name === 'SequelizeUniqueConstraintError') {
@@ -242,7 +250,7 @@ controllers.login = async (req, res) => {
 
         const serviceLineSLL = await obterServiceLineSLL(user.ID_UTILIZADOR, user.SL_REGISTO);
         const userResposta = {
-            ...user.toJSON(),
+            ...sanitizarUtilizador(user),
             ...(serviceLineSLL ? {
                 SL_REGISTO: user.SL_REGISTO || serviceLineSLL,
                 SERVICE_LINE: serviceLineSLL
