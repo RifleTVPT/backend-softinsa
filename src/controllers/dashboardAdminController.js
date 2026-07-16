@@ -55,6 +55,10 @@ controllers.getDashboardAdminData = async (req, res) => {
         const slNomes = [];
         const barrasSLData = [];
 
+        const acessosGlobais = await EstatisticasAcesso.sum('TOTAL_ACESSOS_DIA', { where: { ID_SERVICE_LINE: 0 } });
+        slNomes.push('Global (Admin + TM)');
+        barrasSLData.push(acessosGlobais || 0);
+
         for (const sl of serviceLines) {
             slNomes.push(sl.NOME_SERVICE_LINE);
             const sumAcessosSL = await EstatisticasAcesso.sum('TOTAL_ACESSOS_DIA', { where: { ID_SERVICE_LINE: sl.ID_SERVICE_LINE } });

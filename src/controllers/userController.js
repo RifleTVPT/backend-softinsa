@@ -231,8 +231,9 @@ controllers.login = async (req, res) => {
 
         // Registar acesso em EstatisticasAcesso
         try {
-            // Tentar descobrir a SL. Assumir 1 (Global) se não for consultor
-            let idSL = 1; 
+            // Admin e Talent Manager não pertencem a uma Service Line operacional no acesso.
+            // Guardamos esses acessos no bucket global para não inflacionar a primeira SL.
+            let idSL = 0; 
             const consultor = await Consultor.findOne({ where: { ID_UTILIZADOR: user.ID_UTILIZADOR } });
             if (consultor && consultor.ID_AREA) {
                 const area = await Area.findByPk(consultor.ID_AREA);
