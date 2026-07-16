@@ -12,11 +12,15 @@ const HistoricoPedido = require('../models/HistoricoPedido');
 const RegistoHistoricoPedido = require('../models/RegistoHistoricoPedido');
 const PreferenciasUtilizador = require('../models/PreferenciasUtilizador');
 const { Op } = require('sequelize');
-const { uploadDataUri, uploadMulterFile, uploadEvidenceMulterFile } = require('../services/cloudFileService');
+const path = require('path');
+const { uploadDataUri, uploadMulterFile, uploadEvidenceMulterFile, getApiOrigin } = require('../services/cloudFileService');
 
 const controllers = {};
 
 const ESTADOS_PEDIDO_EM_VALIDACAO = ['Pendente', 'Em Análise TM', 'Em Análise SLL'];
+
+const utilizadorAutorizadoParaCandidatura = (req, idUtilizador) =>
+    Number(req.userId) === Number(idUtilizador);
 
 const badgeObtidoPermiteRenovacao = badgeObtido => {
     if (!badgeObtido?.DATA_EXPIRACAO) return false;
@@ -294,6 +298,9 @@ controllers.createBadge = async (req, res) => {
 controllers.candidatar = async (req, res) => {
     try {
         const { idBadge, idUtilizador, termosAceites } = req.body;
+        if (!utilizadorAutorizadoParaCandidatura(req, idUtilizador)) {
+            return res.status(403).json({ success: false, message: 'Não tem permissões para submeter candidaturas por este utilizador.' });
+        }
         if (String(termosAceites) !== 'true') {
             return res.status(400).json({
                 success: false,
@@ -511,6 +518,9 @@ controllers.candidatar = async (req, res) => {
 controllers.saveRascunho = async (req, res) => {
     try {
         const { idBadge, idUtilizador } = req.body;
+        if (!utilizadorAutorizadoParaCandidatura(req, idUtilizador)) {
+            return res.status(403).json({ success: false, message: 'Não tem permissões para guardar rascunhos por este utilizador.' });
+        }
         let todosFicheiros = [];
         try {
             if (req.body.todosFicheiros) {
@@ -598,6 +608,9 @@ controllers.saveRascunho = async (req, res) => {
 controllers.getRascunho = async (req, res) => {
     try {
         const { idBadge, idUtilizador } = req.params;
+        if (!utilizadorAutorizadoParaCandidatura(req, idUtilizador)) {
+            return res.status(403).json({ success: false, message: 'Não tem permissões para consultar este rascunho.' });
+        }
         const pedido = await Pedido.findOne({
             where: { 
                 ID_UTILIZADOR: idUtilizador, 
@@ -609,7 +622,15 @@ controllers.getRascunho = async (req, res) => {
 
         if (!pedido) return res.json({ success: true, data: null });
 
-        res.json({ success: true, data: pedido });
+        const data = pedido.toJSON();
+        const evidencias = data.Evidencia || data.Evidencias || [];
+        data.Evidencia = evidencias.map(evidencia => ({
+            ...evidencia,
+            URL_FICHEIRO: `${getApiOrigin(req)}/ficheiros/evidencias/${evidencia.ID_EVIDENCIA}/${encodeURIComponent(path.basename(evidencia.NOME_FICHEIRO || 'ficheiro'))}`
+        }));
+        data.Evidencias = data.Evidencia;
+
+        res.json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

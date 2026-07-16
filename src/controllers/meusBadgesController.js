@@ -15,6 +15,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const Nivel = require('../models/Nivel');
+const { getApiOrigin } = require('../services/cloudFileService');
 
 const fetchImage = (url) => {
     return new Promise((resolve, reject) => {
@@ -247,7 +248,7 @@ controllers.getDetalhesBadgeObtido = async (req, res) => {
             ficheirosEvidencia = pedidoAceite.Evidencia.map(e => ({
                 idRequisito: e.ID_REQUISITO,
                 nome: e.NOME_FICHEIRO,
-                url: e.URL_FICHEIRO
+                url: `${getApiOrigin(req)}/ficheiros/evidencias/${e.ID_EVIDENCIA}/${encodeURIComponent(path.basename(e.NOME_FICHEIRO || 'ficheiro'))}`
             }));
         }
 

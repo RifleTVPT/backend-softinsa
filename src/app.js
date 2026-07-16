@@ -73,7 +73,7 @@ app.get('/meus-badges/galeria/:idUtilizador', meusBadgesController.getGaleriaPub
 app.get('/partilha/linkedin/badge/:linkUnico', meusBadgesController.getPartilhaLinkedInBadge);
 app.get('/partilha/linkedin/premium/:idUtilizador/:idMarco', meusBadgesController.getPartilhaLinkedInEspecial);
 app.get('/partilha/linkedin/galeria/:idUtilizador', meusBadgesController.getPartilhaLinkedInGaleria);
-app.get('/ficheiros/evidencias/:idEvidencia/:nomeFicheiro?', pedidosController.servirFicheiroEvidencia);
+app.get('/ficheiros/evidencias/:idEvidencia/:nomeFicheiro?', middleware.checkToken, pedidosController.servirFicheiroEvidencia);
 
 app.use('/dashboard/consultor', middleware.checkToken, dashboardConsultorRoutes);
 app.use('/catalogo', middleware.checkToken, catalogoRoutes);

@@ -27,6 +27,44 @@ const controllers = {};
 
 const ESTADOS_PEDIDO_EM_CURSO = ['Pendente', 'Em Análise TM', 'Em Análise SLL', 'Pendente de Correção'];
 
+const perfisDoPedido = req => String(req.userRole || '')
+    .split('/')
+    .map(perfil => perfil.trim().toLowerCase())
+    .filter(Boolean);
+
+const temPerfilPedido = (req, perfil) => perfisDoPedido(req).includes(perfil.toLowerCase());
+
+const podeAcederEvidencia = async (req, evidencia) => {
+    const pedido = await Pedido.findByPk(evidencia.ID_PEDIDO, {
+        include: [{ model: Badge, include: [Nivel] }]
+    });
+    if (!pedido) return false;
+    return podeAcederPedido(req, pedido);
+};
+
+const podeAcederPedido = async (req, pedido) => {
+    if (temPerfilPedido(req, 'administrador') || temPerfilPedido(req, 'talent manager') || temPerfilPedido(req, 'tm')) {
+        return true;
+    }
+
+    if (Number(pedido.ID_UTILIZADOR) === Number(req.userId)) {
+        return true;
+    }
+
+    if (temPerfilPedido(req, 'service line leader') || temPerfilPedido(req, 'sll')) {
+        const serviceLine = await obterServiceLineSLL(req);
+        return badgePertenceServiceLine(pedido.Badge, serviceLine);
+    }
+
+    return false;
+};
+
+const podeConsultarHistoricoConsultor = (req, idUtilizador) =>
+    Number(req.userId) === Number(idUtilizador) ||
+    temPerfilPedido(req, 'administrador') ||
+    temPerfilPedido(req, 'talent manager') ||
+    temPerfilPedido(req, 'tm');
+
 const limparPedidosAtivosDuplicados = async () => {
     const estados = `'Rascunho', 'Pendente', 'Em Análise TM', 'Em Análise SLL', 'Pendente de Correção'`;
     await sequelize.query(`
@@ -270,6 +308,9 @@ controllers.servirFicheiroEvidencia = async (req, res) => {
         const evidencia = await Evidencia.findByPk(req.params.idEvidencia);
         if (!evidencia) return res.status(404).send('Ficheiro não encontrado.');
 
+        const autorizado = await podeAcederEvidencia(req, evidencia);
+        if (!autorizado) return res.status(403).send('Sem permissões para aceder a esta evidência.');
+
         let buffer = await obterBufferEvidencia(req, evidencia);
         if (!buffer) return res.status(404).send('Ficheiro indisponível.');
 
@@ -283,7 +324,7 @@ controllers.servirFicheiroEvidencia = async (req, res) => {
 
         res.setHeader('Content-Type', mime);
         res.setHeader('Content-Length', buffer.length);
-        res.setHeader('Cache-Control', 'public, max-age=300');
+        res.setHeader('Cache-Control', 'private, no-store');
         res.setHeader(
             'Content-Disposition',
             `${disposition}; filename="${nome.ascii}"; filename*=UTF-8''${encodeURIComponent(nome.original)}`
@@ -348,6 +389,9 @@ controllers.getHistoricoConsultor = async (req, res) => {
     try {
         await limparPedidosAtivosDuplicados();
         const { idUtilizador } = req.params;
+        if (!podeConsultarHistoricoConsultor(req, idUtilizador)) {
+            return res.status(403).json({ success: false, message: 'Não tem permissões para consultar este histórico.' });
+        }
         const pedidos = await Pedido.findAll({
             where: { ID_UTILIZADOR: idUtilizador },
             include: [{ model: Badge, include: [Nivel] }],
@@ -414,6 +458,8 @@ controllers.getDetalhesPedido = async (req, res) => {
             include: [Utilizador, { model: Badge, include: [Nivel] }]
         });
         if(!pedido) return res.status(404).json({ success: false, message: 'Pedido nao encontrado' });
+        const autorizado = await podeAcederPedido(req, pedido);
+        if (!autorizado) return res.status(403).json({ success: false, message: 'Não tem permissões para consultar este pedido.' });
         
         const evidencias = await Evidencia.findAll({
             where: { ID_PEDIDO: idPedido },
