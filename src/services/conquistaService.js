@@ -1,12 +1,29 @@
 const { Op } = require('sequelize');
 const MarcoConquista = require('../models/MarcoConquista');
 const MarcoConsultor = require('../models/MarcoConsultor');
-const ConsultorBadge = require('../models/ConsultorBadge');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
+const ConsultorBadge = require('../models/ConsultorBadge');
+const Badge = require('../models/Badge');
 const pushService = require('./pushService');
 const Utilizador = require('../models/Utilizador');
 const mailer = require('../config/mailer');
+
+const contarBadgesNormaisAtuais = async (idConsultor, desde = null) => {
+    const where = {
+        ID_CONSULTOR: idConsultor
+    };
+    if (desde) where.DATA_ATRIBUICAO_BADGE = { [Op.gte]: desde };
+    return ConsultorBadge.count({ where });
+};
+
+const somarPontosBadgesAtuais = async idConsultor => {
+    const linhas = await ConsultorBadge.findAll({
+        where: { ID_CONSULTOR: idConsultor },
+        include: [{ model: Badge, attributes: ['PONTOS_BADGE'] }]
+    });
+    return linhas.reduce((total, linha) => total + (Number(linha.Badge?.PONTOS_BADGE) || 0), 0);
+};
 
 async function avaliarConquistasConsultor(consultor) {
     const marcos = await MarcoConquista.findAll();
@@ -14,9 +31,8 @@ async function avaliarConquistasConsultor(consultor) {
         where: { ID_CONSULTOR: consultor.ID_CONSULTOR }
     });
     const idsGanhos = new Set(ganhos.map(g => g.ID_MARCO));
-    const totalBadges = await ConsultorBadge.count({
-        where: { ID_CONSULTOR: consultor.ID_CONSULTOR }
-    });
+    const totalBadges = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR);
+    const pontosNormaisAtuais = await somarPontosBadgesAtuais(consultor.ID_CONSULTOR);
     let pontosAtuais = consultor.PONTUACAO_TOTAL || 0;
 
     for (const marco of marcos) {
@@ -26,16 +42,11 @@ async function avaliarConquistasConsultor(consultor) {
         if (marco.TIPO_MARCO === 'TOTAL_BADGES') {
             cumprido = totalBadges >= (marco.PARAMETRO_1 || 0);
         } else if (marco.TIPO_MARCO === 'TOTAL_PONTOS') {
-            cumprido = pontosAtuais >= (marco.PARAMETRO_1 || 0);
+            cumprido = pontosNormaisAtuais >= (marco.PARAMETRO_1 || 0);
         } else if (marco.TIPO_MARCO === 'BADGES_DIAS') {
             const desde = new Date();
             desde.setDate(desde.getDate() - (marco.PARAMETRO_2 || 0));
-            const totalPeriodo = await ConsultorBadge.count({
-                where: {
-                    ID_CONSULTOR: consultor.ID_CONSULTOR,
-                    DATA_ATRIBUICAO_BADGE: { [Op.gte]: desde }
-                }
-            });
+            const totalPeriodo = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR, desde);
             cumprido = totalPeriodo >= (marco.PARAMETRO_1 || 0);
         }
 

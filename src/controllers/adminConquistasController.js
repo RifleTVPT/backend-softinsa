@@ -6,6 +6,8 @@ const Utilizador = require('../models/Utilizador');
 const pushService = require('../services/pushService');
 const mailer = require('../config/mailer');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
+const ConsultorBadge = require('../models/ConsultorBadge');
+const Badge = require('../models/Badge');
 const { Op } = require('sequelize');
 const { uploadMulterFile } = require('../services/cloudFileService');
 
@@ -30,15 +32,15 @@ const janelaRanking = marco => {
     return null;
 };
 
-const pontosPeriodo = async (idUtilizador, inicio, fim) => {
-    const linhas = await HistoricoPontuacao.findAll({
+const pontosPeriodo = async (idConsultor, inicio, fim) => {
+    const linhas = await ConsultorBadge.findAll({
         where: {
-            ID_UTILIZADOR: idUtilizador,
-            DATA_ATRIBUICAO: { [Op.gte]: inicio, [Op.lt]: fim },
-            ORIGEM_PONTOS: { [Op.notLike]: 'Badge premium:%' }
-        }
+            ID_CONSULTOR: idConsultor,
+            DATA_ATRIBUICAO_BADGE: { [Op.gte]: inicio, [Op.lt]: fim }
+        },
+        include: [{ model: Badge, attributes: ['PONTOS_BADGE'] }]
     });
-    return linhas.reduce((total, linha) => total + (Number(linha.PONTOS_OBTIDOS) || 0), 0);
+    return linhas.reduce((total, linha) => total + (Number(linha.Badge?.PONTOS_BADGE) || 0), 0);
 };
 
 const atribuirMarco = async (marco, consultor) => {
@@ -103,7 +105,7 @@ const processarMarcoRanking = async (marco) => {
     let vencedor = null;
     let maiorPontuacao = -1;
     for (const consultor of consultores) {
-        const pontos = await pontosPeriodo(consultor.ID_UTILIZADOR, janela.inicio, janela.fim);
+        const pontos = await pontosPeriodo(consultor.ID_CONSULTOR, janela.inicio, janela.fim);
         if (pontos > maiorPontuacao || (pontos === maiorPontuacao && vencedor && consultor.ID_CONSULTOR < vencedor.ID_CONSULTOR)) {
             vencedor = consultor;
             maiorPontuacao = pontos;

@@ -1,7 +1,6 @@
 ﻿const MarcoConquista = require('../models/MarcoConquista');
 const MarcoConsultor = require('../models/MarcoConsultor');
 const Consultor = require('../models/Consultor');
-const ConsultorBadge = require('../models/ConsultorBadge');
 const { Op } = require('sequelize');
 const Utilizador = require('../models/Utilizador');
 const PDFDocument = require('pdfkit');
@@ -11,6 +10,8 @@ const path = require('path');
 const LogAtividadeSistema = require('../models/LogAtividadeSistema');
 const pushService = require('../services/pushService');
 const HistoricoPontuacao = require('../models/HistoricoPontuacao');
+const ConsultorBadge = require('../models/ConsultorBadge');
+const Badge = require('../models/Badge');
 const mailer = require('../config/mailer');
 const http = require('http');
 const https = require('https');
@@ -57,15 +58,30 @@ const prazoLabelMarco = marco => {
     return `Faltam ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
 };
 
-const pontosPeriodo = async (idUtilizador, inicio, fim) => {
-    const linhas = await HistoricoPontuacao.findAll({
-        where: {
-            ID_UTILIZADOR: idUtilizador,
-            DATA_ATRIBUICAO: { [Op.gte]: inicio, [Op.lt]: fim },
-            ORIGEM_PONTOS: { [Op.notLike]: 'Badge premium:%' }
-        }
+const buildPeriodoBadgeWhere = (idConsultor, inicio = null, fim = null) => {
+    const where = {
+        ID_CONSULTOR: idConsultor
+    };
+    if (inicio || fim) {
+        where.DATA_ATRIBUICAO_BADGE = {};
+        if (inicio) where.DATA_ATRIBUICAO_BADGE[Op.gte] = inicio;
+        if (fim) where.DATA_ATRIBUICAO_BADGE[Op.lt] = fim;
+    }
+    return where;
+};
+
+const contarBadgesNormaisAtuais = async (idConsultor, inicio = null, fim = null) => {
+    return ConsultorBadge.count({
+        where: buildPeriodoBadgeWhere(idConsultor, inicio, fim)
     });
-    return linhas.reduce((total, linha) => total + (Number(linha.PONTOS_OBTIDOS) || 0), 0);
+};
+
+const pontosBadgesNormaisAtuais = async (idConsultor, inicio = null, fim = null) => {
+    const linhas = await ConsultorBadge.findAll({
+        where: buildPeriodoBadgeWhere(idConsultor, inicio, fim),
+        include: [{ model: Badge, attributes: ['PONTOS_BADGE'] }]
+    });
+    return linhas.reduce((total, linha) => total + (Number(linha.Badge?.PONTOS_BADGE) || 0), 0);
 };
 
 const atribuirMarcoAoConsultor = async (marco, consultor, idUtilizador) => {
@@ -123,7 +139,7 @@ const processarRankingSeTerminado = async (marco) => {
     let vencedor = null;
     let maiorPontuacao = -1;
     for (const c of consultores) {
-        const pontos = await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, janela.fim);
+        const pontos = await pontosBadgesNormaisAtuais(c.ID_CONSULTOR, janela.inicio, janela.fim);
         if (pontos > maiorPontuacao || (pontos === maiorPontuacao && vencedor && c.ID_CONSULTOR < vencedor.ID_CONSULTOR)) {
             vencedor = c;
             maiorPontuacao = pontos;
@@ -188,6 +204,7 @@ controllers.getConquistasConsultor = async (req, res) => {
 
         // AUTO-HEALING (Lazy Gamification Evaluation)
         let totalBadgesCache = null;
+        let pontosNormaisCache = null;
         let requiresUpdate = false;
         let currentPoints = consultor.PONTUACAO_TOTAL || 0;
 
@@ -219,19 +236,14 @@ controllers.getConquistasConsultor = async (req, res) => {
                 
                 if (m.TIPO_MARCO === 'TOTAL_BADGES') {
                     if (totalBadgesCache === null) {
-                        totalBadgesCache = await ConsultorBadge.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR }});
+                        totalBadgesCache = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR);
                     }
                     if (totalBadgesCache >= m.PARAMETRO_1) ganhouAgora = true;
                 }
                 else if (m.TIPO_MARCO === 'BADGES_DIAS') {
                     const janela = janelaMarco(m);
                     if (janela && new Date() < janela.fim) {
-                        const badgesNoPeriodo = await ConsultorBadge.count({
-                            where: {
-                                ID_CONSULTOR: consultor.ID_CONSULTOR,
-                                DATA_ATRIBUICAO_BADGE: { [Op.gte]: janela.inicio, [Op.lt]: janela.fim }
-                            }
-                        });
+                        const badgesNoPeriodo = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR, janela.inicio, janela.fim);
                         item.progressoLabel = `${badgesNoPeriodo} / ${m.PARAMETRO_1} Badges`;
                         if (badgesNoPeriodo >= m.PARAMETRO_1) ganhouAgora = true;
                     } else {
@@ -246,12 +258,12 @@ controllers.getConquistasConsultor = async (req, res) => {
                 else if (['MELHOR_ANO', 'MELHOR_MESES'].includes(m.TIPO_MARCO)) {
                     const totalConsultores = await Consultor.count();
                     const janela = janelaMarco(m);
-                    const pontosAtual = janela ? await pontosPeriodo(idUtilizador, janela.inicio, new Date()) : currentPoints;
+                    const pontosAtual = janela ? await pontosBadgesNormaisAtuais(consultor.ID_CONSULTOR, janela.inicio, new Date()) : currentPoints;
                     const todosConsultores = await Consultor.findAll();
                     let consultoresAbaixo = 0;
                     for (const c of todosConsultores) {
                         if (c.ID_CONSULTOR === consultor.ID_CONSULTOR) continue;
-                        const pontosOutro = janela ? await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, new Date()) : (Number(c.PONTUACAO_TOTAL) || 0);
+                        const pontosOutro = janela ? await pontosBadgesNormaisAtuais(c.ID_CONSULTOR, janela.inicio, new Date()) : (Number(c.PONTUACAO_TOTAL) || 0);
                         if (pontosOutro < pontosAtual) consultoresAbaixo++;
                     }
                     const progressoRanking = totalConsultores > 1
@@ -261,8 +273,11 @@ controllers.getConquistasConsultor = async (req, res) => {
                     item.progressoLabel = `À frente de ${item.progressoValor}% dos consultores`;
                 }
                 else if (m.TIPO_MARCO === 'TOTAL_PONTOS') {
-                    if (currentPoints >= m.PARAMETRO_1) ganhouAgora = true;
-                    item.progressoLabel = `${currentPoints} / ${m.PARAMETRO_1} Pontos`;
+                    if (pontosNormaisCache === null) {
+                        pontosNormaisCache = await pontosBadgesNormaisAtuais(consultor.ID_CONSULTOR);
+                    }
+                    if (pontosNormaisCache >= m.PARAMETRO_1) ganhouAgora = true;
+                    item.progressoLabel = `${pontosNormaisCache} / ${m.PARAMETRO_1} Pontos`;
                 }
                 else if (!m.TIPO_MARCO && m.REGRA_ATRIBUICAO && m.REGRA_ATRIBUICAO.toLowerCase().includes('pontos')) {
                     // Legacy logic for points
@@ -326,7 +341,7 @@ controllers.getDetalhesConquista = async (req, res) => {
                 progTexto = 'Conquista obtida';
             }
             else if (marco.TIPO_MARCO === 'TOTAL_BADGES') {
-                const totalBadges = await ConsultorBadge.count({ where: { ID_CONSULTOR: consultor.ID_CONSULTOR }});
+                const totalBadges = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR);
                 progValor = Math.min((totalBadges / marco.PARAMETRO_1) * 100, 100);
                 progTexto = `${totalBadges} / ${marco.PARAMETRO_1} Badges`;
             } 
@@ -337,12 +352,7 @@ controllers.getDetalhesConquista = async (req, res) => {
                     progTexto = 'Já não é possível obter';
                     indisponivel = true;
                 } else {
-                    const badgesNoPeriodo = await ConsultorBadge.count({
-                        where: {
-                            ID_CONSULTOR: consultor.ID_CONSULTOR,
-                            DATA_ATRIBUICAO_BADGE: { [Op.gte]: janela.inicio, [Op.lt]: janela.fim }
-                        }
-                    });
+                    const badgesNoPeriodo = await contarBadgesNormaisAtuais(consultor.ID_CONSULTOR, janela.inicio, janela.fim);
                     progValor = Math.min((badgesNoPeriodo / marco.PARAMETRO_1) * 100, 100);
                     progTexto = `${badgesNoPeriodo} / ${marco.PARAMETRO_1} Badges até ${janela.fim.toLocaleDateString('pt-PT')}`;
                 }
@@ -355,12 +365,12 @@ controllers.getDetalhesConquista = async (req, res) => {
                     indisponivel = true;
                 } else {
                     const totalConsultores = await Consultor.count();
-                    const pontosAtual = janela ? await pontosPeriodo(idUtilizador, janela.inicio, new Date()) : (consultor.PONTUACAO_TOTAL || 0);
+                    const pontosAtual = janela ? await pontosBadgesNormaisAtuais(consultor.ID_CONSULTOR, janela.inicio, new Date()) : (consultor.PONTUACAO_TOTAL || 0);
                     const todosConsultores = await Consultor.findAll();
                     let abaixo = 0;
                     for (const c of todosConsultores) {
                         if (c.ID_CONSULTOR === consultor.ID_CONSULTOR) continue;
-                        const pontosOutro = janela ? await pontosPeriodo(c.ID_UTILIZADOR, janela.inicio, new Date()) : (c.PONTUACAO_TOTAL || 0);
+                        const pontosOutro = janela ? await pontosBadgesNormaisAtuais(c.ID_CONSULTOR, janela.inicio, new Date()) : (c.PONTUACAO_TOTAL || 0);
                         if (pontosOutro < pontosAtual) abaixo++;
                     }
                     progValor = totalConsultores > 1 ? (abaixo / (totalConsultores - 1)) * 100 : 100;
@@ -368,8 +378,9 @@ controllers.getDetalhesConquista = async (req, res) => {
                 }
             }
             else if (marco.TIPO_MARCO === 'TOTAL_PONTOS') {
-                progValor = Math.min(( (consultor.PONTUACAO_TOTAL || 0) / marco.PARAMETRO_1) * 100, 100);
-                progTexto = `${consultor.PONTUACAO_TOTAL || 0} / ${marco.PARAMETRO_1} Pontos`;
+                const pontosAtuaisNormais = await pontosBadgesNormaisAtuais(consultor.ID_CONSULTOR);
+                progValor = Math.min((pontosAtuaisNormais / marco.PARAMETRO_1) * 100, 100);
+                progTexto = `${pontosAtuaisNormais} / ${marco.PARAMETRO_1} Pontos`;
             }
             else if (!marco.TIPO_MARCO && marco.REGRA_ATRIBUICAO && marco.REGRA_ATRIBUICAO.toLowerCase().includes('pontos')) {
                 const match = marco.REGRA_ATRIBUICAO.match(/\d+/);
